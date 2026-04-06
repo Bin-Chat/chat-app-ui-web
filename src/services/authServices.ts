@@ -27,9 +27,7 @@ export const authServices = {
     publicAxios.post<AuthResponse>('/api/auth/login', data).then((r) => r.data),
 
   register: (data: RegisterPayload) =>
-    publicAxios
-      .post<{ message: string }>('/api/auth/register', data)
-      .then((r) => r.data),
+    publicAxios.post<{ message: string }>('/api/auth/register', data).then((r) => r.data),
 
   verifyRegistration: (email: string, otp: string, deviceId?: string) =>
     publicAxios
@@ -67,8 +65,7 @@ export const authServices = {
 
   // ─── Admin ────────────────────────────────────────────────────────────────
 
-  getAdminUsers: () =>
-    authorizedAxios.get<User[]>('/api/auth/admin/users').then((r) => r.data),
+  getAdminUsers: () => authorizedAxios.get<User[]>('/api/auth/admin/users').then((r) => r.data),
 
   updateUserStatus: (id: string, isActive: boolean) =>
     authorizedAxios
@@ -78,5 +75,37 @@ export const authServices = {
   updateUserRole: (id: string, role: UserRole) =>
     authorizedAxios
       .patch<{ message: string }>(`/api/auth/admin/users/${id}/role`, { role })
+      .then((r) => r.data),
+
+  // ── Profile ───────────────────────────────────────────────────────────────
+
+  updateProfile: (
+    id: string,
+    data: { fullName?: string; avatar?: string; phone?: string; bio?: string }
+  ) => authorizedAxios.patch<User>(`/api/users/${id}/profile`, data).then((r) => r.data),
+
+  changePassword: (data: { currentPassword: string; newPassword: string }) =>
+    authorizedAxios
+      .patch<{ message: string }>('/api/auth/change-password', data)
+      .then((r) => r.data),
+
+  // ── File Upload ───────────────────────────────────────────────────────────
+
+  presignUpload: (data: {
+    category: 'avatar' | 'image' | 'video' | 'document';
+    filename: string;
+    mimeType: string;
+    fileSize: number;
+  }) =>
+    authorizedAxios
+      .post<{ presignedUrl: string; objectKey: string }>('/api/uploads/presign', data)
+      .then((r) => r.data),
+
+  finalizeUpload: (data: { objectKey: string; category: string }) =>
+    authorizedAxios
+      .post<{ objectKey: string; cdnUrl: string; size: number; contentType: string }>(
+        '/api/uploads/finalize',
+        data
+      )
       .then((r) => r.data),
 };

@@ -17,7 +17,7 @@ import {
 import { toast } from 'react-toastify';
 
 import { useAppDispatch } from '@/hooks/useRedux';
-import { setAuth } from '@/store/slices';
+import { setAuth, fetchProfile } from '@/store/slices';
 import { authServices } from '@/services/authServices';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 
@@ -54,6 +54,7 @@ export default function Login() {
         deviceId,
       });
       dispatch(setAuth({ user: result.user, isLoggedIn: true }));
+      dispatch(fetchProfile()); // refresh full profile data
       if (result.deviceId) localStorage.setItem('deviceId', result.deviceId);
       toast.success('Đăng nhập thành công!');
       navigate('/');

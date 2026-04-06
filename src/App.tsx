@@ -1,11 +1,15 @@
 import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { MessageCircle } from 'lucide-react';
+import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 
 import { AppInitializer } from './providers/AppInitializer';
+import { FriendSocketInitializer } from './providers/FriendSocketInitializer';
+import { ChatSocketInitializer } from './providers/ChatSocketInitializer';
 import ProtectedRoute from './routes/ProtectedRoute';
 import AuthRoute from './routes/AuthRoute';
+import ChatPage from '@/pages/private/chat/ChatPage';
+import { ChatWelcome } from './components/ChatWelcome';
 
 // Layouts
 import EmptyLayout from '@/layouts/EmptyLayout';
@@ -19,19 +23,8 @@ import ForgotPassword from '@/pages/auth/ForgotPassword/ForgotPassword';
 import VerifyEmail from '@/pages/auth/VerifyEmail/VerifyEmail';
 import AdminDashboard from '@/pages/admin/AdminDashboard';
 import NotFound from '@/pages/public/NotFound';
-
-// Empty state khi chưa chọn cuộc trò chuyện
-function ChatWelcome() {
-  return (
-    <div className="flex-1 flex flex-col items-center justify-center bg-[#F0F2F5] select-none">
-      <div className="w-20 h-20 bg-[#0068FF]/10 rounded-full flex items-center justify-center mb-5">
-        <MessageCircle className="w-10 h-10 text-[#0068FF]/60" strokeWidth={1.5} />
-      </div>
-      <p className="text-[15px] font-semibold text-gray-700 mb-1">Chào mừng đến Bin Chat</p>
-      <p className="text-[13px] text-gray-400">Chọn một cuộc trò chuyện để bắt đầu nhắn tin</p>
-    </div>
-  );
-}
+import ContactsPage from '@/pages/private/contacts';
+import SettingsPage from '@/pages/private/settings';
 
 const router = createBrowserRouter([
   // ─── Protected routes (phải đăng nhập) ───
@@ -45,7 +38,19 @@ const router = createBrowserRouter([
         children: [
           {
             index: true,
-            element: <ChatWelcome />,
+            element: <ChatPage />,
+          },
+          {
+            path: 'chat/:conversationId',
+            element: <ChatPage />,
+          },
+          {
+            path: 'contacts',
+            element: <ContactsPage />,
+          },
+          {
+            path: 'settings',
+            element: <SettingsPage />,
           },
         ],
       },
@@ -105,21 +110,27 @@ const router = createBrowserRouter([
 
 function App() {
   return (
-    <>
-      <AppInitializer />
-      <ToastContainer
-        position="top-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        pauseOnFocusLoss={false}
-        pauseOnHover
-        theme="light"
-      />
-      <RouterProvider router={router} />
-    </>
+    <TooltipPrimitive.Provider delayDuration={400}>
+      <>
+        <AppInitializer />
+        <FriendSocketInitializer />
+        <ChatSocketInitializer />
+        <ToastContainer
+          position="top-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          pauseOnFocusLoss={false}
+          pauseOnHover
+          theme="light"
+        />
+        <RouterProvider router={router} />
+      </>
+    </TooltipPrimitive.Provider>
   );
 }
 
 export default App;
+
+// ─── Protected routes (phải đăng nhập) ───
