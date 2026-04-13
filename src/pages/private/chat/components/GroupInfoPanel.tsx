@@ -11,6 +11,8 @@ import {
   Trash2,
   Edit3,
   Camera,
+  Settings,
+  Ban,
 } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { toast } from 'react-toastify';
@@ -25,6 +27,9 @@ import {
   changeGroupRole,
   transferGroupOwnership,
   dissolveGroup,
+  updateGroupSettings,
+  banGroupMember,
+  unbanGroupMember,
 } from '@/store/slices';
 import UserAvatar from '@/components/UserAvatar';
 import type { Conversation } from '@/types/chat.type';
@@ -50,6 +55,7 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
 
   const [showAddMember, setShowAddMember] = useState(false);
   const [showEditInfo, setShowEditInfo] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [showTransferForLeave, setShowTransferForLeave] = useState(false);
 
@@ -167,6 +173,37 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
     }
   };
 
+  const handleToggleSetting = async (key: string, value: boolean) => {
+    try {
+      await dispatch(
+        updateGroupSettings({ conversationId: conversation._id, settings: { [key]: value } })
+      ).unwrap();
+      toast.success('Đã cập nhật cài đặt nhóm');
+    } catch (err: any) {
+      toast.error(err ?? 'Không thể cập nhật cài đặt');
+    }
+  };
+
+  const handleBanMember = async (memberId: string, bannedUntil?: string) => {
+    try {
+      await dispatch(
+        banGroupMember({ conversationId: conversation._id, memberId, bannedUntil })
+      ).unwrap();
+      toast.success('Đã cấm thành viên gửi tin nhắn');
+    } catch (err: any) {
+      toast.error(err ?? 'Không thể cấm thành viên');
+    }
+  };
+
+  const handleUnbanMember = async (memberId: string) => {
+    try {
+      await dispatch(unbanGroupMember({ conversationId: conversation._id, memberId })).unwrap();
+      toast.success('Đã bỏ cấm thành viên');
+    } catch (err: any) {
+      toast.error(err ?? 'Không thể bỏ cấm');
+    }
+  };
+
   return (
     <>
       <div className="w-[320px] h-full bg-white border-l border-gray-100 flex flex-col flex-shrink-0">
@@ -184,7 +221,12 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
         <div className="flex-1 overflow-y-auto">
           {/* Group info */}
           <div className="px-4 py-4 text-center border-b border-gray-100">
-            <UserAvatar src={conversation.avatar} name={conversation.name} size={64} />
+            <UserAvatar
+              className="m-auto"
+              src={conversation.avatar}
+              name={conversation.name}
+              size={64}
+            />
             <h4 className="text-[15px] font-bold text-gray-800 mt-2">
               {conversation.name || 'Nhóm chat'}
             </h4>
@@ -204,13 +246,54 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
             )}
           </div>
 
+          {/* Group Settings — owner only */}
+          {isOwner && (
+            <div className="px-4 py-3 border-t border-gray-100">
+              <button
+                onClick={() => setShowSettings((v) => !v)}
+                className="flex items-center justify-between w-full group"
+              >
+                <span className="flex items-center gap-1.5 text-[13px] font-semibold text-gray-700">
+                  <Settings className="w-4 h-4" /> Cài đặt nhóm
+                </span>
+                <span className="text-gray-400 text-[11px]">{showSettings ? '▲' : '▼'}</span>
+              </button>
+              {showSettings && (
+                <div className="mt-3 space-y-2.5">
+                  {(
+                    [
+                      ['onlyAdminCanSend', 'Chỉ Quản trị viên gửi tin nhắn'],
+                      ['allowMemberInvite', 'Thành viên được mời người khác'],
+                      ['onlyAdminCanPin', 'Chỉ quản trị viên được ghim tin nhắn'],
+                    ] as [string, string][]
+                  ).map(([key, label]) => {
+                    const val = !!(conversation.settings as any)?.[key];
+                    return (
+                      <div key={key} className="flex items-center justify-between cursor-pointer">
+                        <span className="text-[12px] text-gray-600">{label}</span>
+                        <button
+                          onClick={() => handleToggleSetting(key, !val)}
+                          className={`w-11 h-6 rounded-full transition-colors relative flex-shrink-0 ${val ? 'bg-[#0068FF]' : 'bg-gray-200'}`}
+                        >
+                          <span
+                            className={`absolute left-0 top-1 w-4 h-4 rounded-full bg-white shadow transition-transform ${val ? 'translate-x-6' : 'translate-x-1'}`}
+                          />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Members */}
           <div className="px-4 py-3">
             <div className="flex items-center justify-between mb-2">
               <h5 className="text-[13px] font-semibold text-gray-700">
                 Thành viên ({conversation.participants.length})
               </h5>
-              {canManage && (
+              {(canManage || !!(conversation.settings as any)?.allowMemberInvite) && (
                 <button
                   onClick={() => setShowAddMember(true)}
                   className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-gray-100 text-[#0068FF]"
@@ -232,7 +315,14 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
                     <UserAvatar src={info.avatar} name={info.name} size={32} />
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-medium text-gray-800 truncate">{info.name}</p>
-                      {getRoleBadge(p.role)}
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {getRoleBadge(p.role)}
+                        {p.isBanned && (
+                          <span className="text-[10px] text-red-500 bg-red-50 px-1.5 py-0.5 rounded-full font-medium">
+                            Bị cấm
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Actions for owner */}
@@ -282,12 +372,29 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
                         >
                           <UserMinus className="w-3.5 h-3.5" />
                         </button>
+                        {!p.isBanned ? (
+                          <button
+                            onClick={() => handleBanMember(p.userId)}
+                            title="Cấm gửi tin nhắn 24h"
+                            className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:bg-orange-50 hover:text-orange-500"
+                          >
+                            <Ban className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleUnbanMember(p.userId)}
+                            title="Bỏ cấm"
+                            className="w-6 h-6 rounded-md flex items-center justify-center text-orange-400 hover:bg-green-50 hover:text-green-500"
+                          >
+                            <Ban className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     )}
 
                     {/* Admin can remove members (not owner or other admins) */}
                     {isAdmin && !isSelf && p.role === 'member' && (
-                      <div className="flex items-center">
+                      <div className="flex items-center gap-0.5">
                         <button
                           onClick={() =>
                             setConfirmAction({
@@ -301,6 +408,23 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
                         >
                           <UserMinus className="w-3.5 h-3.5" />
                         </button>
+                        {!p.isBanned ? (
+                          <button
+                            onClick={() => handleBanMember(p.userId)}
+                            title="Cấm gửi tin nhắn 24h"
+                            className="w-6 h-6 rounded-md flex items-center justify-center text-gray-400 hover:bg-orange-50 hover:text-orange-500"
+                          >
+                            <Ban className="w-3.5 h-3.5" />
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleUnbanMember(p.userId)}
+                            title="Bỏ cấm"
+                            className="w-6 h-6 rounded-md flex items-center justify-center text-orange-400 hover:bg-green-50 hover:text-green-500"
+                          >
+                            <Ban className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                     )}
                   </li>

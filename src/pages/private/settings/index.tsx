@@ -1,7 +1,20 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
-import { User, Lock, Eye, EyeOff, Camera, Bell, Palette, ChevronRight } from 'lucide-react';
+import {
+  User,
+  Lock,
+  Eye,
+  EyeOff,
+  Camera,
+  Bell,
+  Palette,
+  ChevronRight,
+  Monitor,
+  Smartphone,
+  Trash2,
+  RefreshCw,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppDispatch, useAppSelector } from '@/hooks/useRedux';
 import { updateProfile } from '@/store/slices';
@@ -242,7 +255,12 @@ function SecuritySection() {
       toast.success('Đổi mật khẩu thành công');
       reset();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Đổi mật khẩu thất bại');
+      const resp = (err as any)?.response?.data;
+      const msg =
+        (Array.isArray(resp?.message) ? resp.message[0] : resp?.message) ??
+        resp?.error ??
+        (err instanceof Error ? err.message : 'Đổi mật khẩu thất bại');
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -382,14 +400,149 @@ function AppearanceSection() {
   );
 }
 
+// ─── Devices Section ──────────────────────────────────────────────────────────
+interface DeviceItem {
+  deviceId: string;
+  deviceType: string;
+  deviceName?: string;
+  loginAt: string;
+  isCurrent: boolean;
+}
+
+function DevicesSection() {
+  const [devices, setDevices] = useState<DeviceItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [kicking, setKicking] = useState<string | null>(null);
+
+  const loadDevices = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await authServices.getDevices();
+      setDevices(data);
+    } catch {
+      toast.error('Không thể tải danh sách thiết bị');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadDevices();
+  }, [loadDevices]);
+
+  const handleKick = async (deviceId: string) => {
+    setKicking(deviceId);
+    try {
+      await authServices.remoteLogout(deviceId);
+      toast.success('Đã đăng xuất thiết bị');
+      loadDevices();
+    } catch {
+      toast.error('Không thể đăng xuất thiết bị');
+    } finally {
+      setKicking(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-10 text-gray-400 gap-2">
+        <RefreshCw className="w-4 h-4 animate-spin" />
+        <span className="text-[13px]">Đang tải...</span>
+      </div>
+    );
+  }
+
+  if (devices.length === 0) {
+    return (
+      <div className="text-center py-10 text-gray-400 text-[13px]">
+        Không có thiết bị nào đang đăng nhập.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-[12px] text-gray-400 mb-4">
+        Các thiết bị đang có phiên đăng nhập hoạt động. Bạn có thể đăng xuất từ xa bất kỳ thiết bị
+        nào.
+      </p>
+      {devices.map((device) => {
+        const DeviceIcon = device.deviceType === 'mobile' ? Smartphone : Monitor;
+        const loginDate = new Date(device.loginAt);
+        const dateStr = loginDate.toLocaleString('vi-VN', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
+        return (
+          <div
+            key={device.deviceId}
+            className={cn(
+              'flex items-center gap-3 p-4 rounded-xl border transition-colors',
+              device.isCurrent
+                ? 'border-[#0068FF]/30 bg-[#0068FF]/5'
+                : 'border-gray-100 bg-white hover:border-gray-200'
+            )}
+          >
+            <div
+              className={cn(
+                'w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0',
+                device.isCurrent ? 'bg-[#0068FF] text-white' : 'bg-gray-100 text-gray-500'
+              )}
+            >
+              <DeviceIcon className="w-5 h-5" />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <p className="text-[13px] font-medium text-gray-800 truncate">
+                  {device.deviceName ??
+                    (device.deviceType === 'mobile' ? 'Điện thoại' : 'Trình duyệt web')}
+                </p>
+                {device.isCurrent && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[#0068FF] text-white font-medium flex-shrink-0">
+                    Thiết bị này
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-gray-400 mt-0.5">Đăng nhập lúc {dateStr}</p>
+            </div>
+
+            {!device.isCurrent && (
+              <button
+                onClick={() => handleKick(device.deviceId)}
+                disabled={kicking === device.deviceId}
+                title="Đăng xuất thiết bị này"
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-red-400
+                           hover:bg-red-50 hover:text-red-600 disabled:opacity-50 disabled:cursor-not-allowed
+                           transition-colors flex-shrink-0"
+              >
+                {kicking === device.deviceId ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Trash2 className="w-4 h-4" />
+                )}
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // ─── Settings Page — Telegram-style 2-column ──────────────────────────────────
-type SectionId = 'profile' | 'security' | 'notifications' | 'appearance';
+type SectionId = 'profile' | 'security' | 'notifications' | 'appearance' | 'devices';
 
 const NAV_ITEMS: { id: SectionId; label: string; subtitle: string; icon: React.ElementType }[] = [
   { id: 'profile', label: 'Thông tin cá nhân', subtitle: 'Ảnh, tên, tiểu sử', icon: User },
   { id: 'security', label: 'Bảo mật', subtitle: 'Mật khẩu & đăng nhập', icon: Lock },
   { id: 'notifications', label: 'Thông báo', subtitle: 'Âm thanh & hiển thị', icon: Bell },
   { id: 'appearance', label: 'Giao diện', subtitle: 'Chủ đề & màu sắc', icon: Palette },
+  { id: 'devices', label: 'Thiết bị', subtitle: 'Quản lý phiên đăng nhập', icon: Smartphone },
 ];
 
 const SECTION_TITLES: Record<SectionId, string> = {
@@ -397,6 +550,7 @@ const SECTION_TITLES: Record<SectionId, string> = {
   security: 'Bảo mật',
   notifications: 'Thông báo',
   appearance: 'Giao diện',
+  devices: 'Thiết bị đã đăng nhập',
 };
 
 export default function SettingsPage() {
@@ -487,6 +641,7 @@ export default function SettingsPage() {
             {activeSection === 'security' && <SecuritySection />}
             {activeSection === 'notifications' && <NotificationsSection />}
             {activeSection === 'appearance' && <AppearanceSection />}
+            {activeSection === 'devices' && <DevicesSection />}
           </div>
         </div>
       </div>

@@ -15,6 +15,12 @@ import {
   socketGroupRoleChanged,
   socketGroupDissolved,
   socketGroupOwnerTransferred,
+  socketMemberBanned,
+  socketMemberUnbanned,
+  socketMessageEdited,
+  socketMessagePinned,
+  socketMessageUnpinned,
+  socketTypingUpdate,
   setUserOnline,
   setUserOffline,
   setPresenceBatch,
@@ -126,9 +132,11 @@ export function ChatSocketInitializer() {
       }
     };
     const onGroupMemberRemoved = (payload: any) => {
-      dispatch(socketGroupMemberRemoved(payload));
-      // If current user was removed, remove the conversation
-      if (payload.removedUserId === user.id) {
+      // Backend sends `removedMemberId`, normalize to `removedUserId` for reducer
+      const removedUserId = payload.removedUserId || payload.removedMemberId;
+      dispatch(socketGroupMemberRemoved({ ...payload, removedUserId }));
+      // If current user was removed, refresh conversations
+      if (removedUserId === user.id) {
         dispatch(fetchConversations());
       }
     };
@@ -136,16 +144,86 @@ export function ChatSocketInitializer() {
       dispatch(socketGroupMemberLeft(payload));
     };
     const onGroupUpdated = (payload: any) => {
-      dispatch(socketGroupUpdated(payload));
+      // Backend sends updates in `changes` object, flatten for reducer
+      const normalized = {
+        conversationId: payload.conversationId,
+        ...payload.changes,
+      };
+      dispatch(socketGroupUpdated(normalized));
     };
     const onGroupRoleChanged = (payload: any) => {
-      dispatch(socketGroupRoleChanged(payload));
+      // Backend sends `memberId`, normalize to `targetUserId` for reducer
+      const targetUserId = payload.targetUserId || payload.memberId;
+      dispatch(socketGroupRoleChanged({ ...payload, targetUserId }));
     };
     const onGroupDissolved = (payload: any) => {
       dispatch(socketGroupDissolved(payload));
     };
     const onGroupOwnerTransferred = (payload: any) => {
       dispatch(socketGroupOwnerTransferred(payload));
+    };
+
+    // ── New feature events ───────────────────────────────────────────
+    const onMessageEdited = (payload: any) => {
+      dispatch(
+        socketMessageEdited({
+          messageId: payload.messageId,
+          conversationId: payload.conversationId,
+          content: payload.content,
+          isEdited: true,
+          editedAt: payload.editedAt,
+        })
+      );
+    };
+    const onMessagePinned = (payload: any) => {
+      dispatch(
+        socketMessagePinned({
+          conversationId: payload.conversationId,
+          messageId: payload.messageId,
+          pinnedBy: payload.pinnedBy,
+          pinnedAt: payload.pinnedAt,
+        })
+      );
+    };
+    const onMessageUnpinned = (payload: any) => {
+      dispatch(
+        socketMessageUnpinned({
+          conversationId: payload.conversationId,
+          messageId: payload.messageId,
+        })
+      );
+    };
+    const onTypingUpdate = (payload: { conversationId: string; typingUserIds: string[] }) => {
+      dispatch(socketTypingUpdate(payload));
+    };
+    const onConversationSettings = (payload: any) => {
+      dispatch(
+        socketConversationUpdated({
+          _id: payload.conversationId,
+          settings: payload.settings,
+        })
+      );
+    };
+    const onMemberBanned = (payload: any) => {
+      dispatch(
+        socketMemberBanned({
+          conversationId: payload.conversationId,
+          memberId: payload.memberId,
+          bannedUntil: payload.bannedUntil ?? null,
+        })
+      );
+      // If current user was banned, also refresh to get updated state
+      if (payload.memberId === user.id) {
+        dispatch(fetchConversations());
+      }
+    };
+    const onMemberUnbanned = (payload: any) => {
+      dispatch(
+        socketMemberUnbanned({
+          conversationId: payload.conversationId,
+          memberId: payload.memberId,
+        })
+      );
     };
 
     // ── Presence events ─────────────────────────────────────────────
@@ -170,6 +248,13 @@ export function ChatSocketInitializer() {
     appSocket.on('group:role_changed', onGroupRoleChanged);
     appSocket.on('group:dissolved', onGroupDissolved);
     appSocket.on('group:owner_transferred', onGroupOwnerTransferred);
+    appSocket.on('message:edited', onMessageEdited);
+    appSocket.on('message:pinned', onMessagePinned);
+    appSocket.on('message:unpinned', onMessageUnpinned);
+    appSocket.on('typing:update', onTypingUpdate);
+    appSocket.on('conversation:settings', onConversationSettings);
+    appSocket.on('member:banned', onMemberBanned);
+    appSocket.on('member:unbanned', onMemberUnbanned);
     appSocket.on('user:online', onUserOnline);
     appSocket.on('user:offline', onUserOffline);
     appSocket.on('presence:result', onPresenceResult);
@@ -186,6 +271,13 @@ export function ChatSocketInitializer() {
       appSocket.off('group:role_changed', onGroupRoleChanged);
       appSocket.off('group:dissolved', onGroupDissolved);
       appSocket.off('group:owner_transferred', onGroupOwnerTransferred);
+      appSocket.off('message:edited', onMessageEdited);
+      appSocket.off('message:pinned', onMessagePinned);
+      appSocket.off('message:unpinned', onMessageUnpinned);
+      appSocket.off('typing:update', onTypingUpdate);
+      appSocket.off('conversation:settings', onConversationSettings);
+      appSocket.off('member:banned', onMemberBanned);
+      appSocket.off('member:unbanned', onMemberUnbanned);
       appSocket.off('user:online', onUserOnline);
       appSocket.off('user:offline', onUserOffline);
       appSocket.off('presence:result', onPresenceResult);

@@ -2,7 +2,16 @@ import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import * as Dialog from '@radix-ui/react-dialog';
-import { CornerUpRight, Trash2, RotateCcw, Copy, SmilePlus, Reply } from 'lucide-react';
+import {
+  CornerUpRight,
+  Trash2,
+  RotateCcw,
+  Copy,
+  SmilePlus,
+  Reply,
+  Pencil,
+  Pin,
+} from 'lucide-react';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 
@@ -62,6 +71,11 @@ interface MessageBubbleProps {
   onHoverIn?: () => void;
   onHoverOut?: () => void;
   bubbleRef?: (el: HTMLDivElement | null) => void;
+  onEdit?: () => void;
+  onPin?: () => void;
+  isAdminOrOwner?: boolean;
+  conversationType?: 'direct' | 'group';
+  onlyAdminCanPin?: boolean;
 }
 
 export default function MessageBubble({
@@ -79,6 +93,11 @@ export default function MessageBubble({
   onHoverIn,
   onHoverOut,
   bubbleRef,
+  onEdit,
+  onPin,
+  isAdminOrOwner = false,
+  conversationType,
+  onlyAdminCanPin = false,
 }: MessageBubbleProps) {
   const dispatch = useAppDispatch();
   const currentUser = useAppSelector((s) => s.auth.user);
@@ -89,15 +108,29 @@ export default function MessageBubble({
   const showActions = isHovered;
 
   const isRevoked = !!message.revokedAt;
+  const isSystemMsg = message.type === 'system' || message.senderId === 'system';
   const timeStr = format(new Date(message.createdAt), 'HH:mm');
 
   const canRevoke =
     isMine &&
     !isRevoked &&
+    !isSystemMsg &&
     (() => {
       const diff = Date.now() - new Date(message.createdAt).getTime();
-      return diff < 15 * 60 * 1000; // 15 minutes
+      return diff < 24 * 60 * 60 * 1000; // 24 hours
     })();
+
+  const canEdit =
+    isMine &&
+    !isRevoked &&
+    !isSystemMsg &&
+    (() => {
+      const diff = Date.now() - new Date(message.createdAt).getTime();
+      return diff < 30 * 60 * 1000; // 30 minutes
+    })();
+
+  // Direct chat: any participant can pin; Group chat: respect onlyAdminCanPin setting
+  const canPin = !isRevoked && !isSystemMsg && (!onlyAdminCanPin || isAdminOrOwner);
 
   const images = message.attachments.filter((a) => a.type === 'image');
   const videos = message.attachments.filter((a) => a.type === 'video');
@@ -393,6 +426,9 @@ export default function MessageBubble({
               className={`text-[13px] leading-relaxed whitespace-pre-wrap break-words ${attachmentsOnly ? 'px-3 pb-1' : ''}`}
             >
               {message.content}
+              {message.isEdited && (
+                <span className="text-[10px] italic opacity-50 ml-1">(đã chỉnh sửa)</span>
+              )}
             </p>
           )}
 
@@ -477,6 +513,30 @@ export default function MessageBubble({
                   className="w-7 h-7 rounded-md flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors"
                 >
                   <Copy className="w-3.5 h-3.5" />
+                </ActionBtn>
+              )}
+              {canEdit && onEdit && (
+                <ActionBtn
+                  label="Chỉnh sửa"
+                  onClick={() => {
+                    onEdit();
+                    onHoverOut?.();
+                  }}
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </ActionBtn>
+              )}
+              {canPin && onPin && (
+                <ActionBtn
+                  label="Đưa lên/bỏ ghim"
+                  onClick={() => {
+                    onPin();
+                    onHoverOut?.();
+                  }}
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-gray-400 hover:bg-amber-50 hover:text-amber-500 transition-colors"
+                >
+                  <Pin className="w-3.5 h-3.5" />
                 </ActionBtn>
               )}
               {isMine && canRevoke && (

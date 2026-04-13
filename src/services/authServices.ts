@@ -7,6 +7,8 @@ interface LoginPayload {
   email: string;
   password: string;
   deviceId?: string;
+  deviceType?: 'mobile' | 'web';
+  deviceName?: string;
 }
 
 interface RegisterPayload {
@@ -24,7 +26,16 @@ interface AuthResponse {
 
 export const authServices = {
   login: (data: LoginPayload) =>
-    publicAxios.post<AuthResponse>('/api/auth/login', data).then((r) => r.data),
+    publicAxios
+      .post<AuthResponse>('/api/auth/login', {
+        ...data,
+        deviceType: data.deviceType ?? 'web',
+        deviceName:
+          (data.deviceName ?? navigator.userAgent.includes('Mobile'))
+            ? 'Trình duyệt mobile'
+            : 'Trình duyệt web',
+      })
+      .then((r) => r.data),
 
   register: (data: RegisterPayload) =>
     publicAxios.post<{ message: string }>('/api/auth/register', data).then((r) => r.data),
@@ -52,7 +63,7 @@ export const authServices = {
       .then((r) => r.data),
 
   getProfile: () =>
-    publicAxios.get<User>('/api/auth/profile').then((r) => ({
+    authorizedAxios.get<User>('/api/auth/profile').then((r) => ({
       data: { user: r.data },
       statusCode: r.status,
     })),
@@ -89,6 +100,26 @@ export const authServices = {
       .patch<{ message: string }>('/api/auth/change-password', data)
       .then((r) => r.data),
 
+  // ── Device Management ─────────────────────────────────────────────────────
+
+  getDevices: () =>
+    authorizedAxios
+      .get<
+        {
+          deviceId: string;
+          deviceType: string;
+          deviceName?: string;
+          loginAt: string;
+          isCurrent: boolean;
+        }[]
+      >('/api/auth/devices')
+      .then((r) => r.data),
+
+  remoteLogout: (deviceId: string) =>
+    authorizedAxios
+      .delete<{ message: string }>(`/api/auth/devices/${deviceId}`)
+      .then((r) => r.data),
+
   // ── File Upload ───────────────────────────────────────────────────────────
 
   presignUpload: (data: {
@@ -103,9 +134,11 @@ export const authServices = {
 
   finalizeUpload: (data: { objectKey: string; category: string }) =>
     authorizedAxios
-      .post<{ objectKey: string; cdnUrl: string; size: number; contentType: string }>(
-        '/api/uploads/finalize',
-        data
-      )
+      .post<{
+        objectKey: string;
+        cdnUrl: string;
+        size: number;
+        contentType: string;
+      }>('/api/uploads/finalize', data)
       .then((r) => r.data),
 };

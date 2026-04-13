@@ -1,10 +1,17 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
-import { Info } from 'lucide-react';
+import { Info, Pin, ChevronDown, Ban } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
+import { toast } from 'react-toastify';
 
 import { useAppDispatch, useAppSelector } from '@/hooks/useRedux';
-import { fetchMessages, fetchGroupMemberProfiles } from '@/store/slices';
+import {
+  fetchMessages,
+  fetchGroupMemberProfiles,
+  pinMessage,
+  unpinMessage,
+  fetchPinnedMessages,
+} from '@/store/slices';
 import { appSocket } from '@/services/appSocket';
 import UserAvatar from '@/components/UserAvatar';
 import MessageBubble from './MessageBubble';
@@ -27,11 +34,14 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
   const friends = useAppSelector((s) => s.friend.friends);
   const groupMemberProfiles = useAppSelector((s) => s.chat.groupMemberProfiles);
   const userPresence = useAppSelector((s) => s.chat.userPresence);
+  const typingUsers = useAppSelector((s) => s.chat.typingUsers);
+  const pinnedMessages = useAppSelector((s) => s.chat.pinnedMessages);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [forwardingMessageId, setForwardingMessageId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const [highlightedId, setHighlightedId] = useState<string | null>(null);
   // Global hover tracking — only one message shows its action bar at a time
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
@@ -59,9 +69,19 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
   useEffect(() => {
     if (conversationId) {
       dispatch(fetchMessages({ conversationId }));
+      dispatch(fetchPinnedMessages(conversationId));
       prevMessagesLenRef.current = 0;
     }
   }, [conversationId, dispatch]);
+
+  // Join/leave conversation room for typing indicators
+  useEffect(() => {
+    if (!conversationId) return;
+    appSocket.emit('conversation:join', { conversationId });
+    return () => {
+      appSocket.emit('conversation:leave', { conversationId });
+    };
+  }, [conversationId]);
 
   // Fetch group member profiles for non-friend participants
   useEffect(() => {
@@ -153,6 +173,51 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
     }
   }, []);
 
+  const myParticipant = conversation?.participants.find((p) => p.userId === currentUser?.id);
+  const myRole = myParticipant?.role ?? 'member';
+  const isAdminOrOwner = myRole === 'owner' || myRole === 'admin';
+
+  const typingIds = typingUsers[conversationId] ?? [];
+  const typingLabel = useMemo(() => {
+    if (typingIds.length === 0) return null;
+    if (typingIds.length === 1) return `${typingIds[0]} đang gõ...`;
+    if (typingIds.length === 2) return `${typingIds[0]} và ${typingIds[1]} đang gõ...`;
+    return `${typingIds.length} người đang gõ...`;
+  }, [typingIds]);
+
+  const allPinned = pinnedMessages[conversationId] ?? [];
+  const [pinnedBannerIdx, setPinnedBannerIdx] = useState(0);
+
+  // Reset banner index when conversation changes or list length changes
+  useEffect(() => {
+    setPinnedBannerIdx(0);
+  }, [conversationId, allPinned.length]);
+
+  const currentPinned = allPinned[pinnedBannerIdx] ?? null;
+
+  // Zalo-style pin action notification (bottom of message area)
+  const [pinNotif, setPinNotif] = useState<{
+    messageId: string;
+    preview: string;
+    action: 'pin' | 'unpin';
+  } | null>(null);
+  const pinNotifTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showPinNotif = useCallback(
+    (messageId: string, preview: string, action: 'pin' | 'unpin') => {
+      if (pinNotifTimer.current) clearTimeout(pinNotifTimer.current);
+      setPinNotif({ messageId, preview, action });
+      pinNotifTimer.current = setTimeout(() => setPinNotif(null), 4000);
+    },
+    []
+  );
+
+  // Restricted input: only admin/owner can send when onlyAdminCanSend is on
+  const isOnlyAdminCanSend = !!(conversation?.settings as any)?.onlyAdminCanSend;
+  const isOnlyAdminCanPin = !!(conversation?.settings as any)?.onlyAdminCanPin;
+  const isBannedMember = !!myParticipant?.isBanned;
+  const isInputRestricted = isOnlyAdminCanSend && !isAdminOrOwner;
+  const isChatBlocked = isBannedMember || isInputRestricted;
+
   return (
     <div className="flex h-full">
       <div className="flex flex-col flex-1 min-w-0 bg-[#F0F2F5]">
@@ -200,6 +265,38 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
             </button>
           )}
         </div>
+
+        {/* Pinned message banner */}
+        {currentPinned && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-100 flex-shrink-0">
+            <Pin className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+            <button
+              className="flex-1 min-w-0 text-left"
+              onClick={() => handleScrollToMessage(currentPinned._id)}
+            >
+              <p className="text-[11px] font-semibold text-amber-600">
+                Tin nhắn được ghim
+                {allPinned.length > 1 && (
+                  <span className="ml-1.5 font-normal text-amber-500">
+                    {pinnedBannerIdx + 1}/{allPinned.length}
+                  </span>
+                )}
+              </p>
+              <p className="text-[12px] text-gray-600 truncate">
+                {currentPinned.content || '[Tệp đính kèm]'}
+              </p>
+            </button>
+            {allPinned.length > 1 && (
+              <button
+                onClick={() => setPinnedBannerIdx((i) => (i + 1) % allPinned.length)}
+                className="w-6 h-6 rounded-full flex items-center justify-center hover:bg-amber-100 text-amber-500"
+                title="Xem tin ghim tiếp theo"
+              >
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Messages */}
         <div
@@ -272,6 +369,26 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
                     if (el) msgRefs.current.set(msg._id, el);
                     else msgRefs.current.delete(msg._id);
                   }}
+                  onEdit={() => setEditingMessage(msg)}
+                  onPin={async () => {
+                    const isPinned = pinnedMessages[conversationId]?.some((p) => p._id === msg._id);
+                    try {
+                      if (isPinned) {
+                        await dispatch(
+                          unpinMessage({ messageId: msg._id, conversationId })
+                        ).unwrap();
+                        showPinNotif(msg._id, msg.content || '[Tệp đính kèm]', 'unpin');
+                      } else {
+                        await dispatch(pinMessage({ messageId: msg._id, conversationId })).unwrap();
+                        showPinNotif(msg._id, msg.content || '[Tệp đính kèm]', 'pin');
+                      }
+                    } catch (err: any) {
+                      toast.error(err ?? 'Thao tác thất bại');
+                    }
+                  }}
+                  isAdminOrOwner={isAdminOrOwner}
+                  conversationType={conversation?.type}
+                  onlyAdminCanPin={isOnlyAdminCanPin}
                 />
               </div>
             );
@@ -279,12 +396,63 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
           <div ref={messagesEndRef} />
         </div>
 
+        {/* Typing indicator */}
+        {typingLabel && (
+          <div className="px-4 py-1 flex items-center gap-1.5 bg-white border-t border-gray-100 flex-shrink-0">
+            <span className="flex gap-0.5">
+              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:0ms]" />
+              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:200ms]" />
+              <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce [animation-delay:400ms]" />
+            </span>
+            <p className="text-[12px] text-gray-400 italic">{typingLabel}</p>
+          </div>
+        )}
+
+        {/* Pin action notification (Zalo-style) */}
+        {pinNotif && (
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-[#1e1e2e] text-white flex-shrink-0">
+            <Pin className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+            <span className="flex-1 min-w-0 text-[13px] truncate">
+              {pinNotif.action === 'pin' ? 'Bạn đã ghim' : 'Bạn đã bỏ ghim'} 1 tin nhắn{' '}
+              <span className="text-gray-400">{pinNotif.preview}</span>
+            </span>
+            <button
+              onClick={() => {
+                handleScrollToMessage(pinNotif.messageId);
+                setPinNotif(null);
+              }}
+              className="text-[13px] text-[#4DA3FF] font-medium flex-shrink-0 hover:underline"
+            >
+              Xem
+            </button>
+          </div>
+        )}
+
         {/* Input */}
-        <MessageInput
-          conversationId={conversationId}
-          replyingTo={replyingTo}
-          onCancelReply={() => setReplyingTo(null)}
-        />
+        {isBannedMember ? (
+          <div className="flex items-center gap-2.5 px-4 py-3.5 bg-red-50 border-t border-red-100 flex-shrink-0">
+            <Ban className="w-4 h-4 text-red-500 flex-shrink-0" />
+            <p className="text-[13px] text-red-600 flex-1">
+              Bạn đang bị cấm gửi tin nhắn trong nhóm này.
+            </p>
+          </div>
+        ) : isInputRestricted ? (
+          <div className="flex items-center gap-2 px-4 py-3.5 bg-gray-800 border-t border-gray-700 flex-shrink-0">
+            <Info className="w-4 h-4 text-gray-300 flex-shrink-0" />
+            <p className="text-[13px] text-gray-200 flex-1">
+              Chỉ trưởng/phó cộng đồng được gửi tin nhắn vào cộng đồng.
+            </p>
+          </div>
+        ) : (
+          <MessageInput
+            conversationId={conversationId}
+            replyingTo={replyingTo}
+            onCancelReply={() => setReplyingTo(null)}
+            editingMessage={editingMessage}
+            onCancelEdit={() => setEditingMessage(null)}
+            currentUserName={currentUser?.fullName ?? ''}
+          />
+        )}
 
         {/* Forward modal */}
         {forwardingMessageId && (

@@ -85,6 +85,14 @@ const authSlice = createSlice({
         localStorage.removeItem('userLoggedIn');
       }
     },
+    // Dùng khi bị kick bởi thiết bị khác — không gọi API vì session đã bị vô hiệu
+    forceLogout: (state) => {
+      localStorage.removeItem('userLoggedIn');
+      state.user = null;
+      state.isLoggedIn = false;
+      state.loading = false;
+      state.error = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -145,5 +153,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setIsLogging, setUser, setAuth } = authSlice.actions;
+export const { setIsLogging, setUser, setAuth, forceLogout } = authSlice.actions;
 export default authSlice.reducer;

@@ -1,5 +1,6 @@
 import axios, { AxiosError } from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
+import { toast } from 'react-toastify';
 import type { AppStore } from '@/store';
 import { setAuth, logoutUser } from '@/store/slices/authSlice';
 
@@ -49,8 +50,13 @@ authorizedAxios.interceptors.response.use(
 
     // ===== 401 Unauthorized =====
     if (error.response?.status === 401) {
-      // Nếu gọi profile → fail bình thường
-      if (originalRequest?.url?.includes('/api/v1/auth/profile')) {
+      // Nếu gọi profile → thử refresh token trước (xử lý access token hết hạn)
+
+      // Single Session: bị kick bởi thiết bị khác — thông báo và force logout ngay
+      const errMsg = (error.response?.data as any)?.message as string | undefined;
+      if (errMsg?.includes('thiết bị khác')) {
+        toast.error(errMsg, { toastId: 'session-kicked', autoClose: 6000 });
+        appStore?.dispatch(logoutUser());
         return Promise.reject(error);
       }
 

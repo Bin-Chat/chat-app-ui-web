@@ -35,12 +35,15 @@ export interface Message {
   conversationId: string;
   senderId: string;
   content: string;
+  type?: 'text' | 'image' | 'video' | 'file' | 'voice' | 'system';
   attachments: Attachment[];
   deletedFor: string[];
   revokedAt: string | null;
   forwardedFrom: ForwardInfo | null;
   replyTo: ReplyInfo | null;
   reactions: Reaction[];
+  isEdited?: boolean;
+  editedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,6 +52,27 @@ export interface Participant {
   userId: string;
   role: 'owner' | 'admin' | 'member';
   joinedAt: string;
+  isBanned?: boolean;
+  bannedUntil?: string | null;
+  isPinned?: boolean;
+  isArchived?: boolean;
+  isMuted?: boolean;
+  muteUntil?: string | null;
+  lastReadAt?: string | null;
+}
+
+export interface ConversationSettings {
+  onlyAdminCanSend?: boolean;
+  allowMemberInvite?: boolean;
+  onlyAdminCanPin?: boolean;
+  requireJoinApproval?: boolean;
+  chatHistoryForNewMembers?: boolean;
+}
+
+export interface PinnedMessage {
+  messageId: string;
+  pinnedBy: string;
+  pinnedAt: string;
 }
 
 export interface LastMessage {
@@ -66,6 +90,8 @@ export interface Conversation {
   name?: string;
   avatar?: string;
   description?: string;
+  settings?: ConversationSettings;
+  pinnedMessages?: PinnedMessage[];
   createdAt: string;
   updatedAt: string;
   // Populated on frontend

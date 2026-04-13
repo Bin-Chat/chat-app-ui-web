@@ -10,6 +10,7 @@ import {
   socketUnfriended,
   fetchReceivedRequests,
   fetchFriends,
+  forceLogout,
 } from '@/store/slices';
 
 /**
@@ -61,11 +62,25 @@ export function FriendSocketInitializer() {
       dispatch(socketUnfriended(payload));
     };
 
+    // Single session: bị kick khi thiết bị khác đăng nhập
+    const onSessionKicked = (payload: any) => {
+      // Chỉ logout nếu event nhắm vào loại thiết bị 'web' (web app)
+      if (payload?.deviceType && payload.deviceType !== 'web') return;
+      toast.error(
+        payload?.reason ?? 'Phiên đăng nhập đã hết hạn vì tài khoản vừa đăng nhập ở thiết bị khác.',
+        { toastId: 'session-kicked', autoClose: 6000 }
+      );
+      // Dùng forceLogout thay vì logoutUser() vì session đã bị vô hiệu —
+      // gọi POST /logout sẽ bị JwtAuthGuard chặn (deviceId không khớp) → 401 → không logout được
+      dispatch(forceLogout());
+    };
+
     appSocket.on('friend:request_received', onRequestReceived);
     appSocket.on('friend:request_accepted', onRequestAccepted);
     appSocket.on('friend:request_declined', onRequestDeclined);
     appSocket.on('friend:request_cancelled', onRequestCancelled);
     appSocket.on('friend:unfriended', onUnfriended);
+    appSocket.on('session:kicked', onSessionKicked);
 
     return () => {
       appSocket.off('friend:request_received', onRequestReceived);
@@ -73,6 +88,7 @@ export function FriendSocketInitializer() {
       appSocket.off('friend:request_declined', onRequestDeclined);
       appSocket.off('friend:request_cancelled', onRequestCancelled);
       appSocket.off('friend:unfriended', onUnfriended);
+      appSocket.off('session:kicked', onSessionKicked);
     };
   }, [user, dispatch]);
 

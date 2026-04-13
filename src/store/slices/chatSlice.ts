@@ -23,6 +23,10 @@ export interface ChatState {
   groupMemberProfiles: Record<string, UserProfile>;
   /** Online presence status for users (keyed by userId) */
   userPresence: Record<string, PresenceInfo>;
+  /** Currently typing users per conversation: conversationId → string[] of userIds */
+  typingUsers: Record<string, string[]>;
+  /** Pinned messages per conversation */
+  pinnedMessages: Record<string, Message[]>;
 }
 
 const initialState: ChatState = {
@@ -37,6 +41,8 @@ const initialState: ChatState = {
   unreadCounts: {},
   groupMemberProfiles: {},
   userPresence: {},
+  typingUsers: {},
+  pinnedMessages: {},
 };
 
 // ── Thunks ────────────────────────────────────────────────────────────────────
@@ -262,6 +268,108 @@ export const fetchGroupMemberProfiles = createAsyncThunk<
   }
 });
 
+// ── New thunks ────────────────────────────────────────────────────────────────
+
+export const editMessage = createAsyncThunk<
+  Message,
+  { messageId: string; conversationId: string; content: string },
+  { rejectValue: string }
+>('chat/editMessage', async ({ messageId, content }, thunkAPI) => {
+  try {
+    return await chatServices.editMessage(messageId, content);
+  } catch (err: any) {
+    return thunkAPI.rejectWithValue(
+      err?.response?.data?.message ?? err.message ?? 'Không thể chỉnh sửa tin nhắn'
+    );
+  }
+});
+
+export const pinMessage = createAsyncThunk<
+  void,
+  { messageId: string; conversationId: string },
+  { rejectValue: string }
+>('chat/pinMessage', async ({ messageId, conversationId }, thunkAPI) => {
+  try {
+    await chatServices.pinMessage(messageId);
+    thunkAPI.dispatch(fetchPinnedMessages(conversationId));
+  } catch (err: any) {
+    return thunkAPI.rejectWithValue(
+      err?.response?.data?.message ?? err.message ?? 'Không thể ghim tin nhắn'
+    );
+  }
+});
+
+export const unpinMessage = createAsyncThunk<
+  void,
+  { messageId: string; conversationId: string },
+  { rejectValue: string }
+>('chat/unpinMessage', async ({ messageId, conversationId }, thunkAPI) => {
+  try {
+    await chatServices.unpinMessage(messageId);
+    thunkAPI.dispatch(fetchPinnedMessages(conversationId));
+  } catch (err: any) {
+    return thunkAPI.rejectWithValue(
+      err?.response?.data?.message ?? err.message ?? 'Không thể bỏ ghim tin nhắn'
+    );
+  }
+});
+
+export const fetchPinnedMessages = createAsyncThunk<
+  { conversationId: string; messages: Message[] },
+  string,
+  { rejectValue: string }
+>('chat/fetchPinnedMessages', async (conversationId, thunkAPI) => {
+  try {
+    const messages = await chatServices.getPinnedMessages(conversationId);
+    return { conversationId, messages };
+  } catch (err: any) {
+    return thunkAPI.rejectWithValue(err.message ?? 'Không thể tải tin nhắn đã ghim');
+  }
+});
+
+export const updateGroupSettings = createAsyncThunk<
+  { conversationId: string; settings: Record<string, boolean> },
+  { conversationId: string; settings: Record<string, boolean> },
+  { rejectValue: string }
+>('chat/updateGroupSettings', async ({ conversationId, settings }, thunkAPI) => {
+  try {
+    await chatServices.updateSettings(conversationId, settings);
+    return { conversationId, settings };
+  } catch (err: any) {
+    return thunkAPI.rejectWithValue(
+      err?.response?.data?.message ?? err.message ?? 'Không thể cập nhật cài đặt'
+    );
+  }
+});
+
+export const banGroupMember = createAsyncThunk<
+  void,
+  { conversationId: string; memberId: string; bannedUntil?: string },
+  { rejectValue: string }
+>('chat/banGroupMember', async ({ conversationId, memberId, bannedUntil }, thunkAPI) => {
+  try {
+    await chatServices.banMember(conversationId, memberId, bannedUntil);
+  } catch (err: any) {
+    return thunkAPI.rejectWithValue(
+      err?.response?.data?.message ?? err.message ?? 'Không thể cấm thành viên'
+    );
+  }
+});
+
+export const unbanGroupMember = createAsyncThunk<
+  void,
+  { conversationId: string; memberId: string },
+  { rejectValue: string }
+>('chat/unbanGroupMember', async ({ conversationId, memberId }, thunkAPI) => {
+  try {
+    await chatServices.unbanMember(conversationId, memberId);
+  } catch (err: any) {
+    return thunkAPI.rejectWithValue(
+      err?.response?.data?.message ?? err.message ?? 'Không thể bỏ cấm'
+    );
+  }
+});
+
 // ── Slice ─────────────────────────────────────────────────────────────────────
 
 const chatSlice = createSlice({
@@ -316,16 +424,22 @@ const chatSlice = createSlice({
     },
     socketConversationUpdated: (
       state,
-      action: PayloadAction<{ _id: string; lastMessage?: any }>
+      action: PayloadAction<{
+        _id: string;
+        lastMessage?: any;
+        settings?: Record<string, any>;
+        [key: string]: any;
+      }>
     ) => {
-      const { _id, lastMessage } = action.payload;
+      const { _id, lastMessage, settings, ...rest } = action.payload;
       const idx = state.conversations.findIndex((c) => c._id === _id);
       // Only update existing conversations — NEVER insert unknown entries
-      // (prevents the ghost \"Nh\u00f3m chat\" entry caused by ObjectId mapping mismatch)
+      // (prevents the ghost "Nhóm chat" entry caused by ObjectId mapping mismatch)
       if (idx < 0) return;
       state.conversations[idx] = {
         ...state.conversations[idx],
         ...(lastMessage ? { lastMessage } : {}),
+        ...(settings ? { settings: { ...state.conversations[idx].settings, ...settings } } : {}),
       };
       // Move updated conversation to top
       const [conv] = state.conversations.splice(idx, 1);
@@ -338,20 +452,72 @@ const chatSlice = createSlice({
         conversationId: string;
         userId: string;
         emoji: string;
+        action: 'added' | 'removed';
       }>
     ) => {
-      const { messageId, conversationId, userId, emoji } = action.payload;
+      const { messageId, conversationId, userId, emoji, action: reactionAction } = action.payload;
       const msgs = state.messages[conversationId];
       if (!msgs) return;
       const msg = msgs.find((m) => m._id === messageId);
       if (!msg) return;
       if (!msg.reactions) msg.reactions = [];
-      const existIdx = msg.reactions.findIndex((r) => r.userId === userId && r.emoji === emoji);
-      if (existIdx >= 0) {
-        msg.reactions.splice(existIdx, 1);
-      } else {
+      // 1-per-user rule: remove any existing reaction from this user first
+      msg.reactions = msg.reactions.filter((r) => r.userId !== userId);
+      if (reactionAction === 'added') {
         msg.reactions.push({ userId, emoji });
       }
+    },
+
+    socketMessageEdited: (
+      state,
+      action: PayloadAction<{
+        messageId: string;
+        conversationId: string;
+        content: string;
+        editedAt: string;
+      }>
+    ) => {
+      const { messageId, conversationId, content, editedAt } = action.payload;
+      const msgs = state.messages[conversationId];
+      if (!msgs) return;
+      const msg = msgs.find((m) => m._id === messageId);
+      if (msg) {
+        msg.content = content;
+        (msg as any).isEdited = true;
+        (msg as any).editedAt = editedAt;
+      }
+    },
+
+    socketMessagePinned: (
+      state,
+      action: PayloadAction<{ messageId: string; conversationId: string; pinnedBy: string }>
+    ) => {
+      const { messageId, conversationId, pinnedBy } = action.payload;
+      if (!state.pinnedMessages[conversationId]) state.pinnedMessages[conversationId] = [];
+      const msgs = state.messages[conversationId] ?? [];
+      const msg = msgs.find((m) => m._id === messageId);
+      if (msg && !state.pinnedMessages[conversationId].some((m) => m._id === messageId)) {
+        state.pinnedMessages[conversationId].push({ ...msg, pinnedBy } as any);
+      }
+    },
+
+    socketMessageUnpinned: (
+      state,
+      action: PayloadAction<{ messageId: string; conversationId: string }>
+    ) => {
+      const { messageId, conversationId } = action.payload;
+      if (state.pinnedMessages[conversationId]) {
+        state.pinnedMessages[conversationId] = state.pinnedMessages[conversationId].filter(
+          (m) => m._id !== messageId
+        );
+      }
+    },
+
+    socketTypingUpdate: (
+      state,
+      action: PayloadAction<{ conversationId: string; typingUserIds: string[] }>
+    ) => {
+      state.typingUsers[action.payload.conversationId] = action.payload.typingUserIds;
     },
 
     // ── Group socket-driven reducers ─────────────────────────────────
@@ -446,6 +612,36 @@ const chatSlice = createSlice({
         if (oldOwner) oldOwner.role = 'admin';
         const newOwner = conv.participants.find((p) => p.userId === action.payload.newOwnerId);
         if (newOwner) newOwner.role = 'owner';
+      }
+    },
+    socketMemberBanned: (
+      state,
+      action: PayloadAction<{
+        conversationId: string;
+        memberId: string;
+        bannedUntil?: string | null;
+      }>
+    ) => {
+      const conv = state.conversations.find((c) => c._id === action.payload.conversationId);
+      if (conv) {
+        const p = conv.participants.find((pp) => pp.userId === action.payload.memberId);
+        if (p) {
+          (p as any).isBanned = true;
+          (p as any).bannedUntil = action.payload.bannedUntil ?? null;
+        }
+      }
+    },
+    socketMemberUnbanned: (
+      state,
+      action: PayloadAction<{ conversationId: string; memberId: string }>
+    ) => {
+      const conv = state.conversations.find((c) => c._id === action.payload.conversationId);
+      if (conv) {
+        const p = conv.participants.find((pp) => pp.userId === action.payload.memberId);
+        if (p) {
+          (p as any).isBanned = false;
+          (p as any).bannedUntil = null;
+        }
       }
     },
 
@@ -603,6 +799,32 @@ const chatSlice = createSlice({
         state.groupMemberProfiles[profile.id] = profile;
       }
     });
+
+    // editMessage
+    builder.addCase(editMessage.fulfilled, (state, action) => {
+      const msg = action.payload;
+      const convId = action.meta.arg.conversationId;
+      const msgs = state.messages[convId];
+      if (msgs) {
+        const idx = msgs.findIndex((m) => m._id === msg._id);
+        if (idx >= 0) msgs[idx] = { ...msgs[idx], ...msg };
+      }
+    });
+
+    // fetchPinnedMessages
+    builder.addCase(fetchPinnedMessages.fulfilled, (state, action) => {
+      const { conversationId, messages } = action.payload;
+      state.pinnedMessages[conversationId] = messages;
+    });
+
+    // updateGroupSettings — optimistically update local state immediately
+    builder.addCase(updateGroupSettings.fulfilled, (state, action) => {
+      const { conversationId, settings } = action.payload;
+      const conv = state.conversations.find((c) => c._id === conversationId);
+      if (conv) {
+        conv.settings = { ...conv.settings, ...settings } as any;
+      }
+    });
   },
 });
 
@@ -611,6 +833,10 @@ export const {
   clearChatError,
   socketMessageNew,
   socketMessageRevoked,
+  socketMessageEdited,
+  socketMessagePinned,
+  socketMessageUnpinned,
+  socketTypingUpdate,
   socketConversationUpdated,
   socketReactionToggled,
   socketGroupMembersAdded,
@@ -620,6 +846,8 @@ export const {
   socketGroupRoleChanged,
   socketGroupDissolved,
   socketGroupOwnerTransferred,
+  socketMemberBanned,
+  socketMemberUnbanned,
   setUserOnline,
   setUserOffline,
   setPresenceBatch,

@@ -9,6 +9,7 @@ export {
   setIsLogging,
   setUser,
   setAuth,
+  forceLogout,
 } from './authSlice';
 export type { AuthState } from './authSlice';
 
@@ -63,8 +64,21 @@ export {
   socketGroupRoleChanged,
   socketGroupDissolved,
   socketGroupOwnerTransferred,
+  socketMemberBanned,
+  socketMemberUnbanned,
   setUserOnline,
   setUserOffline,
   setPresenceBatch,
+  editMessage,
+  pinMessage,
+  unpinMessage,
+  fetchPinnedMessages,
+  updateGroupSettings,
+  banGroupMember,
+  unbanGroupMember,
+  socketMessageEdited,
+  socketMessagePinned,
+  socketMessageUnpinned,
+  socketTypingUpdate,
 } from './chatSlice';
 export type { ChatState, PresenceInfo } from './chatSlice';

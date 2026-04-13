@@ -1,10 +1,11 @@
-import { useState, useRef, type KeyboardEvent } from 'react';
-import { Send, Smile, Paperclip, X, Image, FileText, Film, Reply } from 'lucide-react';
+import { useState, useRef, useCallback, type KeyboardEvent } from 'react';
+import { Send, Smile, Paperclip, X, Image, FileText, Film, Reply, Pencil } from 'lucide-react';
 import { toast } from 'react-toastify';
 
 import { useAppDispatch, useAppSelector } from '@/hooks/useRedux';
-import { sendMessage } from '@/store/slices';
+import { sendMessage, editMessage } from '@/store/slices';
 import { authServices } from '@/services/authServices';
+import { appSocket } from '@/services/appSocket';
 import EmojiPicker from './EmojiPicker';
 import type { Message } from '@/types/chat.type';
 
@@ -12,6 +13,9 @@ interface MessageInputProps {
   conversationId: string;
   replyingTo?: Message | null;
   onCancelReply?: () => void;
+  editingMessage?: Message | null;
+  onCancelEdit?: () => void;
+  currentUserName?: string;
 }
 
 interface PendingAttachment {
@@ -125,6 +129,9 @@ export default function MessageInput({
   conversationId,
   replyingTo,
   onCancelReply,
+  editingMessage,
+  onCancelEdit,
+  currentUserName = '',
 }: MessageInputProps) {
   const dispatch = useAppDispatch();
   const sending = useAppSelector((s) => s.chat.sendingMessage);
@@ -134,11 +141,49 @@ export default function MessageInput({
   const [showFilePicker, setShowFilePicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isTypingRef = useRef(false);
 
   const handleEmojiSelect = (emoji: string) => {
     setText((prev) => prev + emoji);
     textareaRef.current?.focus();
   };
+
+  // Populate text area when switching into edit mode
+  const prevEditingIdRef = useRef<string | null>(null);
+  if (editingMessage && editingMessage._id !== prevEditingIdRef.current) {
+    prevEditingIdRef.current = editingMessage._id;
+    // use timeout to avoid setState during render
+    setTimeout(() => {
+      setText(editingMessage.content ?? '');
+      textareaRef.current?.focus();
+    }, 0);
+  }
+  if (!editingMessage && prevEditingIdRef.current !== null) {
+    prevEditingIdRef.current = null;
+  }
+
+  const stopTyping = useCallback(() => {
+    if (isTypingRef.current) {
+      isTypingRef.current = false;
+      appSocket.emit('typing:stop', { conversationId });
+    }
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+      typingTimerRef.current = null;
+    }
+  }, [conversationId]);
+
+  const emitTypingStart = useCallback(() => {
+    if (!isTypingRef.current) {
+      isTypingRef.current = true;
+      appSocket.emit('typing:start', { conversationId, userName: currentUserName });
+    }
+    if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = setTimeout(() => {
+      stopTyping();
+    }, 4000);
+  }, [conversationId, currentUserName, stopTyping]);
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -272,7 +317,24 @@ export default function MessageInput({
 
   const handleSend = async () => {
     const trimmed = text.trim();
-    if (!trimmed && attachments.length === 0) return;
+    if (!editingMessage && !trimmed && attachments.length === 0) return;
+    if (editingMessage && !trimmed) return;
+
+    stopTyping();
+
+    // Edit mode
+    if (editingMessage) {
+      try {
+        await dispatch(
+          editMessage({ messageId: editingMessage._id, content: trimmed })
+        ).unwrap();
+        setText('');
+        onCancelEdit?.();
+      } catch (err: unknown) {
+        toast.error(extractApiError(err));
+      }
+      return;
+    }
 
     // Snapshot state before clearing UI
     const pendingAttachments = [...attachments];
@@ -289,12 +351,15 @@ export default function MessageInput({
     onCancelReply?.();
 
     try {
-      // 1. Send text message first (if any)
-      if (trimmed) {
-        await dispatch(sendMessage({ conversationId, content: trimmed, replyTo })).unwrap();
-      }
-
-      // 2. Send each attachment as its own separate message
+      // 1. Upload all attachments first (sequentially, with per-file progress)
+      const uploadedAll: Array<{
+        url: string;
+        filename: string;
+        size: number;
+        mimeType: string;
+        thumbnailUrl?: string;
+        type: PendingAttachment['type'];
+      }> = [];
       for (let i = 0; i < pendingAttachments.length; i++) {
         const att = pendingAttachments[i];
         setAttachments((prev) => prev.map((a, j) => (j === i ? { ...a, uploading: true } : a)));
@@ -306,23 +371,27 @@ export default function MessageInput({
             },
             att.type === 'video' ? att.preview : undefined
           );
-          // replyTo only on first message when no text was sent
-          const attachReplyTo = !trimmed && i === 0 ? replyTo : undefined;
-          await dispatch(
-            sendMessage({
-              conversationId,
-              attachments: [{ ...uploaded, type: att.type }],
-              replyTo: attachReplyTo,
-            })
-          ).unwrap();
+          uploadedAll.push({ ...uploaded, type: att.type });
         } catch (attErr: unknown) {
-          toast.error(`Không thể gửi "${att.file.name}": ${extractApiError(attErr)}`, {
+          toast.error(`Không thể upload "${att.file.name}": ${extractApiError(attErr)}`, {
             autoClose: 5000,
           });
           setAttachments((prev) =>
             prev.map((a, j) => (j === i ? { ...a, uploading: false, progress: 0 } : a))
           );
         }
+      }
+
+      // 2. Send ONE message with text + all uploaded attachments together
+      if (trimmed || uploadedAll.length > 0) {
+        await dispatch(
+          sendMessage({
+            conversationId,
+            content: trimmed || undefined,
+            attachments: uploadedAll.length > 0 ? uploadedAll : undefined,
+            replyTo,
+          })
+        ).unwrap();
       }
     } catch (err: unknown) {
       toast.error(extractApiError(err));
@@ -347,10 +416,32 @@ export default function MessageInput({
     const el = e.target;
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+    if (e.target.value.trim()) emitTypingStart();
+    else stopTyping();
   };
 
   return (
     <div className="border-t border-gray-100 bg-white px-4 py-3 flex-shrink-0">
+      {/* Edit mode banner */}
+      {editingMessage && (
+        <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-blue-50 rounded-xl border-l-4 border-[#0068FF]">
+          <Pencil className="w-3.5 h-3.5 text-[#0068FF] flex-shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-medium text-[#0068FF] truncate">Đang chỉnh sửa tin nhắn</p>
+            <p className="text-[12px] text-gray-500 truncate">{editingMessage.content}</p>
+          </div>
+          <button
+            onClick={() => {
+              setText('');
+              onCancelEdit?.();
+              stopTyping();
+            }}
+            className="w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300 flex-shrink-0"
+          >
+            <X className="w-3 h-3 text-gray-500" />
+          </button>
+        </div>
+      )}
       {/* Reply preview strip */}
       {replyingTo && (
         <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-gray-50 rounded-xl border-l-4 border-[#0068FF]">
