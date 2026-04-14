@@ -30,13 +30,13 @@ interface PendingAttachment {
 const FILE_SIZE_LIMITS: Record<'image' | 'video' | 'file', number> = {
   image: 10 * 1024 * 1024, // 10 MB
   video: 50 * 1024 * 1024, // 50 MB
-  file: 50 * 1024 * 1024, // 50 MB
+  file: 20 * 1024 * 1024, // 20 MB (backend document limit)
 };
 
 const FILE_SIZE_LABELS: Record<'image' | 'video' | 'file', string> = {
   image: '10 MB',
   video: '50 MB',
-  file: '50 MB',
+  file: '20 MB',
 };
 
 /** Extract a human-readable message from an API error */
@@ -50,7 +50,7 @@ function extractApiError(err: unknown): string {
       // Humanize known patterns
       const msg: string = resp.message[0];
       if (msg.includes('must not be greater than')) {
-        return `File quá nặng. Giới hạn: ảnh 10 MB, video/file 50 MB.`;
+        return `File quá nặng. Giới hạn: ảnh 10 MB, video 50 MB, tài liệu 20 MB.`;
       }
       return msg;
     }
@@ -325,9 +325,7 @@ export default function MessageInput({
     // Edit mode
     if (editingMessage) {
       try {
-        await dispatch(
-          editMessage({ messageId: editingMessage._id, content: trimmed })
-        ).unwrap();
+        await dispatch(editMessage({ messageId: editingMessage._id, content: trimmed })).unwrap();
         setText('');
         onCancelEdit?.();
       } catch (err: unknown) {
@@ -427,7 +425,9 @@ export default function MessageInput({
         <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-blue-50 rounded-xl border-l-4 border-[#0068FF]">
           <Pencil className="w-3.5 h-3.5 text-[#0068FF] flex-shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-medium text-[#0068FF] truncate">Đang chỉnh sửa tin nhắn</p>
+            <p className="text-[11px] font-medium text-[#0068FF] truncate">
+              Đang chỉnh sửa tin nhắn
+            </p>
             <p className="text-[12px] text-gray-500 truncate">{editingMessage.content}</p>
           </div>
           <button

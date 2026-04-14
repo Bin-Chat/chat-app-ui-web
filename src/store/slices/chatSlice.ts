@@ -47,16 +47,30 @@ const initialState: ChatState = {
 
 // ── Thunks ────────────────────────────────────────────────────────────────────
 
-export const fetchConversations = createAsyncThunk<Conversation[], void, { rejectValue: string }>(
-  'chat/fetchConversations',
-  async (_, thunkAPI) => {
-    try {
-      return await chatServices.getConversations();
-    } catch (err: any) {
-      return thunkAPI.rejectWithValue(err.message ?? 'Không thể tải danh sách hội thoại');
+export const fetchConversations = createAsyncThunk<
+  { conversations: Conversation[]; unreadCounts: Record<string, number> },
+  void,
+  { rejectValue: string }
+>('chat/fetchConversations', async (_, thunkAPI) => {
+  try {
+    const userId = (thunkAPI.getState() as any).auth?.user?.id ?? '';
+    const conversations = await chatServices.getConversations();
+    // Compute unread from lastMessage.sentAt vs participant.lastReadAt
+    const unreadCounts: Record<string, number> = {};
+    for (const conv of conversations) {
+      if (!conv.lastMessage) continue;
+      const me = conv.participants.find((p) => p.userId === userId);
+      if (!me) continue;
+      const lastRead = me.lastReadAt;
+      if (!lastRead || new Date(conv.lastMessage.sentAt) > new Date(lastRead)) {
+        unreadCounts[conv._id] = 1;
+      }
     }
+    return { conversations, unreadCounts };
+  } catch (err: any) {
+    return thunkAPI.rejectWithValue(err.message ?? 'Không thể tải danh sách hội thoại');
   }
-);
+});
 
 export const createConversation = createAsyncThunk<
   Conversation,
@@ -667,7 +681,13 @@ const chatSlice = createSlice({
         state.error = null;
       })
       .addCase(fetchConversations.fulfilled, (state, action) => {
-        state.conversations = action.payload;
+        state.conversations = action.payload.conversations;
+        // Initialise unread counts; preserve higher socket-incremented values
+        for (const [id, count] of Object.entries(action.payload.unreadCounts)) {
+          if ((state.unreadCounts[id] ?? 0) < count) {
+            state.unreadCounts[id] = count;
+          }
+        }
         state.loadingConversations = false;
       })
       .addCase(fetchConversations.rejected, (state, action) => {
