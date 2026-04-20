@@ -2,6 +2,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import { useAppSelector } from '@/hooks/useRedux';
 
 import { AppInitializer } from './providers/AppInitializer';
 import { FriendSocketInitializer } from './providers/FriendSocketInitializer';
@@ -9,7 +10,8 @@ import { ChatSocketInitializer } from './providers/ChatSocketInitializer';
 import ProtectedRoute from './routes/ProtectedRoute';
 import AuthRoute from './routes/AuthRoute';
 import ChatPage from '@/pages/private/chat/ChatPage';
-import { ChatWelcome } from './components/ChatWelcome';
+import IncomingCallModal from './components/call/IncomingCallModal';
+import CallRoom from './components/call/CallRoom';
 
 // Layouts
 import EmptyLayout from '@/layouts/EmptyLayout';
@@ -109,6 +111,8 @@ const router = createBrowserRouter([
 ]);
 
 function App() {
+  const callStatus = useAppSelector((s: any) => s.call?.status ?? 'idle');
+
   return (
     <TooltipPrimitive.Provider delayDuration={400}>
       <>
@@ -126,6 +130,9 @@ function App() {
           theme="light"
         />
         <RouterProvider router={router} />
+        {/* Call overlays — render on top of everything */}
+        <IncomingCallModal />
+        {callStatus !== 'idle' && <CallRoom />}
       </>
     </TooltipPrimitive.Provider>
   );

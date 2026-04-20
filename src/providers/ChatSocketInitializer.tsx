@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { toast } from 'react-toastify';
 
 import { useAppDispatch, useAppSelector } from '@/hooks/useRedux';
 import { appSocket } from '@/services/appSocket';
+import { chatServices } from '@/services/chatServices';
 import {
   socketMessageNew,
   socketMessageRevoked,
@@ -25,8 +26,14 @@ import {
   setUserOffline,
   setPresenceBatch,
   fetchConversations,
+  setIncomingCall,
+  clearIncomingCall,
+  endCall,
+  removeParticipant,
+  setOngoingGroupCall,
 } from '@/store/slices';
 import type { Message } from '@/types/chat.type';
+import type { CallSliceState } from '@/store/slices';
 
 /** Request browser notification permission once on mount */
 function requestNotificationPermission() {
@@ -49,6 +56,12 @@ export function ChatSocketInitializer() {
   const dispatch = useAppDispatch();
   const user = useAppSelector((s) => s.auth.user);
   const activeConversationId = useAppSelector((s) => s.chat.activeConversationId);
+  // Stable ref for call state — used inside socket callbacks to avoid stale closures
+  const call = useAppSelector((s) => s.call) as CallSliceState;
+  const callRef = useRef<CallSliceState>(call);
+  useEffect(() => {
+    callRef.current = call;
+  }, [call]);
 
   useEffect(() => {
     requestNotificationPermission();
@@ -64,6 +77,7 @@ export function ChatSocketInitializer() {
         conversationId: payload.conversationId,
         senderId: payload.senderId,
         content: payload.content ?? '',
+        type: payload.type,
         attachments: payload.attachments ?? [],
         deletedFor: [],
         revokedAt: null,
@@ -117,6 +131,7 @@ export function ChatSocketInitializer() {
       conversationId: string;
       userId: string;
       emoji: string;
+      action: 'added' | 'removed';
     }) => {
       dispatch(socketReactionToggled(payload));
     };
@@ -170,7 +185,6 @@ export function ChatSocketInitializer() {
           messageId: payload.messageId,
           conversationId: payload.conversationId,
           content: payload.content,
-          isEdited: true,
           editedAt: payload.editedAt,
         })
       );
@@ -181,7 +195,6 @@ export function ChatSocketInitializer() {
           conversationId: payload.conversationId,
           messageId: payload.messageId,
           pinnedBy: payload.pinnedBy,
-          pinnedAt: payload.pinnedAt,
         })
       );
     };
@@ -237,6 +250,101 @@ export function ChatSocketInitializer() {
       dispatch(setPresenceBatch(payload));
     };
 
+    // ── Call events ──────────────────────────────────────────────────
+    const onCallIncoming = (payload: {
+      callId: string;
+      conversationId: string;
+      callType: 'audio' | 'video';
+      callerId: string;
+      callerName: string;
+      callerAvatar?: string;
+      participantIds?: string[];
+    }) => {
+      dispatch(setIncomingCall(payload));
+      // Track ongoing group calls so users can rejoin after rejection/leaving
+      if (payload.participantIds && payload.participantIds.length > 2) {
+        dispatch(setOngoingGroupCall(payload));
+      }
+    };
+
+    const onCallRejected = (payload: {
+      callId: string;
+      userId: string;
+      conversationId?: string;
+      callType?: 'audio' | 'video';
+    }) => {
+      // Only caller sends the system message (to avoid duplicates)
+      if (callRef.current.initiatorId === user.id && payload.conversationId) {
+        const callType = payload.callType ?? callRef.current.callType;
+        const icon = callType === 'video' ? '📹' : '📞';
+        const label = callType === 'video' ? 'video' : 'thoại';
+        void chatServices
+          .sendMessage(payload.conversationId, {
+            content: `${icon} Cuộc gọi ${label} bị từ chối`,
+            type: 'system',
+          })
+          .catch(console.error);
+      }
+      toast.info('Cuộc gọi bị từ chối.', { autoClose: 3000 });
+      dispatch(endCall());
+    };
+
+    const onCallEnded = (payload: {
+      callId?: string;
+      conversationId?: string;
+      outcome?: 'completed' | 'cancelled' | 'missed';
+      duration?: number;
+      callType?: 'audio' | 'video';
+      endedBy?: string;
+    }) => {
+      const currentCall = callRef.current;
+      const convId = payload.conversationId ?? currentCall.conversationId;
+      // Only caller sends system messages to avoid duplicates.
+      // 'cancelled' and 'completed (A hangs up)' are handled in CallRoom.handleHangUp.
+      // Here we handle: missed (timeout) and completed (B hangs up).
+      if (currentCall.initiatorId === user.id && convId) {
+        const callType = payload.callType ?? currentCall.callType;
+        const icon = callType === 'video' ? '📹' : '📞';
+        const label = callType === 'video' ? 'video' : 'thoại';
+
+        if (payload.outcome === 'missed') {
+          void chatServices
+            .sendMessage(convId, { content: `${icon} Cuộc gọi ${label} nhỡ`, type: 'system' })
+            .catch(console.error);
+        } else if (
+          payload.outcome === 'completed' &&
+          typeof payload.duration === 'number' &&
+          payload.endedBy !== user.id // B hung up — A hasn't sent the message yet
+        ) {
+          const mins = Math.floor(payload.duration / 60);
+          const secs = payload.duration % 60;
+          const dur = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+          void chatServices
+            .sendMessage(convId, { content: `${icon} Cuộc gọi ${label} - ${dur}`, type: 'system' })
+            .catch(console.error);
+        }
+      }
+      dispatch(endCall());
+    };
+
+    // Gateway sends call:cancelled to participants who haven't accepted yet
+    // (e.g. caller hung up before anyone answered, or 45s timeout)
+    const onCallCancelled = () => {
+      dispatch(clearIncomingCall());
+      dispatch(setOngoingGroupCall(null));
+    };
+
+    // Someone left a GROUP call — only remove from participant list (call continues for others)
+    const onCallParticipantLeft = (payload: { callId: string; userId: string }) => {
+      dispatch(removeParticipant(payload.userId));
+    };
+
+    const onCallBusy = () => {
+      toast.warn('Người dùng đang bận.', { autoClose: 3000 });
+      dispatch(clearIncomingCall());
+      dispatch(endCall());
+    };
+
     appSocket.on('message:new', onMessageNew);
     appSocket.on('message:revoked', onMessageRevoked);
     appSocket.on('conversation:updated', onConversationUpdated);
@@ -258,6 +366,12 @@ export function ChatSocketInitializer() {
     appSocket.on('user:online', onUserOnline);
     appSocket.on('user:offline', onUserOffline);
     appSocket.on('presence:result', onPresenceResult);
+    appSocket.on('call:incoming', onCallIncoming);
+    appSocket.on('call:rejected', onCallRejected);
+    appSocket.on('call:ended', onCallEnded);
+    appSocket.on('call:cancelled', onCallCancelled);
+    appSocket.on('call:participant_left', onCallParticipantLeft);
+    appSocket.on('call:busy', onCallBusy);
 
     return () => {
       appSocket.off('message:new', onMessageNew);
@@ -281,8 +395,14 @@ export function ChatSocketInitializer() {
       appSocket.off('user:online', onUserOnline);
       appSocket.off('user:offline', onUserOffline);
       appSocket.off('presence:result', onPresenceResult);
+      appSocket.off('call:incoming', onCallIncoming);
+      appSocket.off('call:rejected', onCallRejected);
+      appSocket.off('call:ended', onCallEnded);
+      appSocket.off('call:cancelled', onCallCancelled);
+      appSocket.off('call:participant_left', onCallParticipantLeft);
+      appSocket.off('call:busy', onCallBusy);
     };
-  }, [user, dispatch]);
+  }, [user, dispatch, activeConversationId]);
 
   return null;
 }

@@ -1,13 +1,15 @@
-import { configureStore, combineReducers } from "@reduxjs/toolkit";
-import { authReducer } from "./slices";
-import friendReducer from "./slices/friendSlice";
-import chatReducer from "./slices/chatSlice";
-import { setAppStore } from "@/utils/authorizedAxios";
+import { configureStore, combineReducers } from '@reduxjs/toolkit';
+import { authReducer } from './slices';
+import friendReducer from './slices/friendSlice';
+import chatReducer from './slices/chatSlice';
+import callReducer from './slices/callSlice';
+import { setAppStore } from '@/utils/authorizedAxios';
 
 const rootReducer = combineReducers({
   auth: authReducer,
   friend: friendReducer,
   chat: chatReducer,
+  call: callReducer,
 });
 
 // Configure store

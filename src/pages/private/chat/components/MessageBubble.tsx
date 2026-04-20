@@ -11,6 +11,10 @@ import {
   Reply,
   Pencil,
   Pin,
+  Phone,
+  Video,
+  PhoneMissed,
+  VideoOff,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
@@ -221,6 +225,74 @@ export default function MessageBubble({
       </Dialog.Portal>
     </Dialog.Root>
   );
+
+  // System messages (call events, group events) render as centered non-interactive pills
+  if (isSystemMsg) {
+    const content = message.content ?? '';
+
+    // ── Call system messages ─────────────────────────────────────────
+    // New format: '[VOICE] ...' / '[VIDEO] ...' — legacy: '📞 ...' / '📹 ...'
+    const isVoiceCall = content.startsWith('[VOICE]') || content.startsWith('📞');
+    const isVideoCall = content.startsWith('[VIDEO]') || content.startsWith('📹');
+
+    if (isVoiceCall || isVideoCall) {
+      // Strip prefix to get human-readable text
+      const rest =
+        content.startsWith('[VOICE]') || content.startsWith('[VIDEO]')
+          ? content.slice(7).trim()
+          : content.slice(2).trim(); // legacy emoji
+
+      const isMissed = rest.includes('bị hủy');
+
+      // Parse "Cuộc gọi thoại - 01:23" → callLabel & duration
+      const dashIdx = rest.lastIndexOf(' - ');
+      const callLabel = dashIdx !== -1 ? rest.slice(0, dashIdx) : rest;
+      const duration = dashIdx !== -1 ? rest.slice(dashIdx + 3) : null;
+
+      const CallIcon = isVideoCall ? (isMissed ? VideoOff : Video) : isMissed ? PhoneMissed : Phone;
+
+      const iconBg = isMissed
+        ? 'bg-gray-100 dark:bg-gray-700'
+        : isVideoCall
+          ? 'bg-blue-50 dark:bg-blue-900/20'
+          : 'bg-green-50 dark:bg-green-900/20';
+
+      const iconColor = isMissed
+        ? 'text-gray-400 dark:text-gray-500'
+        : isVideoCall
+          ? 'text-blue-500'
+          : 'text-green-500';
+
+      return (
+        <div className="flex justify-center my-3">
+          <div className="flex items-center gap-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl px-4 py-3 max-w-[280px] shadow-sm">
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${iconBg}`}
+            >
+              <CallIcon className={`w-5 h-5 ${iconColor}`} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[13px] font-semibold text-gray-800 dark:text-gray-200 leading-tight truncate">
+                {callLabel}
+              </p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                {isMissed ? 'Không thành công' : (duration ?? 'Đã kết thúc')}
+              </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Generic system pill (group events, etc.) ─────────────────────
+    return (
+      <div className="flex justify-center my-1.5">
+        <span className="text-[11px] text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full select-none">
+          {content}
+        </span>
+      </div>
+    );
+  }
 
   if (isRevoked) {
     return (

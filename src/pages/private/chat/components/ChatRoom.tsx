@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
-import { Info, Pin, ChevronDown, Ban } from 'lucide-react';
+import { Info, Pin, ChevronDown, Ban, Phone, Video } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { toast } from 'react-toastify';
@@ -11,6 +11,8 @@ import {
   pinMessage,
   unpinMessage,
   fetchPinnedMessages,
+  startCall,
+  acceptCall,
 } from '@/store/slices';
 import { appSocket } from '@/services/appSocket';
 import UserAvatar from '@/components/UserAvatar';
@@ -218,6 +220,41 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
   const isInputRestricted = isOnlyAdminCanSend && !isAdminOrOwner;
   const isChatBlocked = isBannedMember || isInputRestricted;
 
+  // ── Call initiation ──────────────────────────────────────────────────────
+  const callState = useAppSelector((s) => s.call);
+
+  const initiateCall = useCallback(
+    (callType: 'audio' | 'video') => {
+      if (!conversation || !currentUser) return;
+      if (callState.status !== 'idle') return; // already in a call
+
+      const callId = crypto.randomUUID();
+      const participantIds = conversation.participants
+        .map((p) => p.userId)
+        .filter((id) => id !== currentUser.id);
+
+      appSocket.emit('call:initiate', {
+        callId,
+        conversationId,
+        callType,
+        participantIds,
+        callerName: currentUser.fullName ?? currentUser.username ?? 'Bạn',
+        callerAvatar: currentUser.avatar,
+      });
+
+      dispatch(
+        startCall({
+          callId,
+          conversationId,
+          callType,
+          participantIds: [...participantIds, currentUser.id],
+          initiatorId: currentUser.id,
+        })
+      );
+    },
+    [callState.status, conversation, conversationId, currentUser, dispatch]
+  );
+
   return (
     <div className="flex h-full">
       <div className="flex flex-col flex-1 min-w-0 bg-[#F0F2F5]">
@@ -264,7 +301,55 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
               <Info className="w-5 h-5" />
             </button>
           )}
+          {/* Call buttons */}
+          {callState.status === 'idle' && (
+            <>
+              <button
+                onClick={() => initiateCall('audio')}
+                title="Gọi thoại"
+                className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+              >
+                <Phone className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => initiateCall('video')}
+                title="Gọi video"
+                className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+              >
+                <Video className="w-5 h-5" />
+              </button>
+            </>
+          )}
         </div>
+
+        {/* Ongoing group call rejoin banner */}
+        {callState.ongoingGroupCall?.conversationId === conversationId &&
+          callState.status === 'idle' && (
+            <div className="flex items-center gap-3 px-4 py-2.5 bg-green-500/10 border-b border-green-500/20 flex-shrink-0">
+              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              <span className="text-[13px] text-green-700 font-medium flex-1">
+                Đang có cuộc gọi nhóm
+              </span>
+              <button
+                onClick={() => {
+                  const ongoing = callState.ongoingGroupCall!;
+                  appSocket.emit('call:accept', { callId: ongoing.callId });
+                  dispatch(
+                    acceptCall({
+                      callId: ongoing.callId,
+                      conversationId: ongoing.conversationId,
+                      callType: ongoing.callType,
+                      callerId: ongoing.callerId,
+                      currentUserId: currentUser?.id,
+                    })
+                  );
+                }}
+                className="text-[12px] font-semibold text-green-600 hover:text-green-700 bg-green-500/20 hover:bg-green-500/30 px-3 py-1 rounded-full transition-colors"
+              >
+                Tham gia
+              </button>
+            </div>
+          )}
 
         {/* Pinned message banner */}
         {currentPinned && (
@@ -338,8 +423,10 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
             const senderName = senderFriend?.fullName ?? senderProfile?.fullName ?? null;
             const senderAvatar = senderFriend?.avatar ?? senderProfile?.avatar ?? null;
 
-            // Show sender name in group chats
-            const showSenderName = conversation?.type === 'group' && !isMine && showAvatar;
+            // Show sender name in group chats (not for system messages)
+            const isSystemMsg = msg.type === 'system' || msg.senderId === 'system';
+            const showSenderName =
+              !isSystemMsg && conversation?.type === 'group' && !isMine && showAvatar;
 
             return (
               <div key={msg._id}>

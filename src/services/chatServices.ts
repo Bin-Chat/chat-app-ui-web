@@ -9,6 +9,7 @@ interface CreateConversationPayload {
 
 interface SendMessagePayload {
   content?: string;
+  type?: string; // e.g. 'system' for call/group event messages
   replyTo?: {
     messageId: string;
     senderId: string;
@@ -70,7 +71,9 @@ export const chatServices = {
     authorizedAxios.post(`/api/chat/messages/${messageId}/react`, { emoji }).then((r) => r.data),
 
   editMessage: (messageId: string, content: string) =>
-    authorizedAxios.patch<Message>(`/api/chat/messages/${messageId}`, { content }).then((r) => r.data),
+    authorizedAxios
+      .patch<Message>(`/api/chat/messages/${messageId}`, { content })
+      .then((r) => r.data),
 
   pinMessage: (messageId: string) =>
     authorizedAxios.post(`/api/chat/messages/${messageId}/pin`).then((r) => r.data),
@@ -79,7 +82,9 @@ export const chatServices = {
     authorizedAxios.delete(`/api/chat/messages/${messageId}/pin`).then((r) => r.data),
 
   getPinnedMessages: (conversationId: string) =>
-    authorizedAxios.get<Message[]>(`/api/chat/conversations/${conversationId}/pinned`).then((r) => r.data),
+    authorizedAxios
+      .get<Message[]>(`/api/chat/conversations/${conversationId}/pinned`)
+      .then((r) => r.data),
 
   markAsRead: (conversationId: string) =>
     authorizedAxios.post(`/api/chat/conversations/${conversationId}/read`).then((r) => r.data),
@@ -125,25 +130,39 @@ export const chatServices = {
   dissolveGroup: (conversationId: string) =>
     authorizedAxios.delete(`/api/chat/conversations/${conversationId}`).then((r) => r.data),
 
-  updateSettings: (conversationId: string, settings: {
-    onlyAdminCanSend?: boolean;
-    allowMemberInvite?: boolean;
-    requireJoinApproval?: boolean;
-    chatHistoryForNewMembers?: boolean;
-  }) =>
-    authorizedAxios.patch(`/api/chat/conversations/${conversationId}/settings`, settings).then((r) => r.data),
+  updateSettings: (
+    conversationId: string,
+    settings: {
+      onlyAdminCanSend?: boolean;
+      allowMemberInvite?: boolean;
+      requireJoinApproval?: boolean;
+      chatHistoryForNewMembers?: boolean;
+    }
+  ) =>
+    authorizedAxios
+      .patch(`/api/chat/conversations/${conversationId}/settings`, settings)
+      .then((r) => r.data),
 
   banMember: (conversationId: string, memberId: string, bannedUntil?: string) =>
-    authorizedAxios.post(`/api/chat/conversations/${conversationId}/members/${memberId}/ban`, { bannedUntil }).then((r) => r.data),
+    authorizedAxios
+      .post(`/api/chat/conversations/${conversationId}/members/${memberId}/ban`, { bannedUntil })
+      .then((r) => r.data),
 
   unbanMember: (conversationId: string, memberId: string) =>
-    authorizedAxios.delete(`/api/chat/conversations/${conversationId}/members/${memberId}/ban`).then((r) => r.data),
+    authorizedAxios
+      .delete(`/api/chat/conversations/${conversationId}/members/${memberId}/ban`)
+      .then((r) => r.data),
 
-  updateMySettings: (conversationId: string, settings: {
-    isPinned?: boolean;
-    isArchived?: boolean;
-    isMuted?: boolean;
-    muteUntil?: string;
-  }) =>
-    authorizedAxios.patch(`/api/chat/conversations/${conversationId}/me`, settings).then((r) => r.data),
+  updateMySettings: (
+    conversationId: string,
+    settings: {
+      isPinned?: boolean;
+      isArchived?: boolean;
+      isMuted?: boolean;
+      muteUntil?: string;
+    }
+  ) =>
+    authorizedAxios
+      .patch(`/api/chat/conversations/${conversationId}/me`, settings)
+      .then((r) => r.data),
 };

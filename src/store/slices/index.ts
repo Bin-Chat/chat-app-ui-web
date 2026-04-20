@@ -82,3 +82,20 @@ export {
   socketTypingUpdate,
 } from './chatSlice';
 export type { ChatState, PresenceInfo } from './chatSlice';
+
+export { default as callReducer } from './callSlice';
+export {
+  setIncomingCall,
+  clearIncomingCall,
+  startCall,
+  acceptCall,
+  setCallConnected,
+  addParticipant,
+  removeParticipant,
+  endCall,
+  setMuted,
+  setVideoOff,
+  setScreenSharing,
+  setOngoingGroupCall,
+} from './callSlice';
+export type { IncomingCallInfo, CallStatus, CallSliceState } from './callSlice';
