@@ -92,10 +92,12 @@ authorizedAxios.interceptors.response.use(
               throw new Error('Refresh failed');
             }
           })
-          .catch((refreshError) => {
+          .catch(() => {
+            // Do NOT return Promise.reject here — nobody awaits refreshTokenPromise directly.
+            // Callers are notified via onRefreshed(false) → subscribers queue.
+            // Returning a rejection would create an unhandled promise rejection crash.
             appStore?.dispatch(logoutUser());
             onRefreshed(false);
-            return Promise.reject(refreshError);
           })
           .finally(() => {
             refreshTokenPromise = null;

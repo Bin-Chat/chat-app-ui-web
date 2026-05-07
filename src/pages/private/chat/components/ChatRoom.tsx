@@ -1,5 +1,5 @@
-import { useEffect, useRef, useCallback, useMemo, useState } from 'react';
-import { Info, Pin, ChevronDown, Ban, Phone, Video } from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from 'react';
+import { Info, Pin, ChevronDown, Ban, Phone, Video, Search, FileText, Bot } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { toast } from 'react-toastify';
@@ -20,6 +20,9 @@ import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
 import ForwardModal from './ForwardModal';
 import GroupInfoPanel from './GroupInfoPanel';
+import AiSearchPanel from './AiSearchPanel';
+import AiSummaryModal from './AiSummaryModal';
+import AiBotPanel from './AiBotPanel';
 import type { Message } from '@/types/chat.type';
 
 interface ChatRoomProps {
@@ -41,6 +44,13 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const prevScrollHeightRef = useRef<number>(0);
+  const prevScrollTopRef = useRef<number>(0);
+  const loadingOlderRef = useRef(false);
+  // Stable ref to the oldest visible message cursor — avoids messages/visibleMessages in handleScroll deps
+  const oldestMsgCursorRef = useRef<string | null>(null);
+  // Pending jump-to-message when target isn't rendered yet
+  const pendingJumpRef = useRef<{ messageId: string; attempts: number } | null>(null);
   const [forwardingMessageId, setForwardingMessageId] = useState<string | null>(null);
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
@@ -48,6 +58,10 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
   // Global hover tracking — only one message shows its action bar at a time
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
   const [showGroupInfo, setShowGroupInfo] = useState(false);
+  // AI panels
+  const [showAiSearch, setShowAiSearch] = useState(false);
+  const [showAiSummary, setShowAiSummary] = useState(false);
+  const [showAiBot, setShowAiBot] = useState(false);
   const msgRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const prevMessagesLenRef = useRef(0);
 
@@ -72,7 +86,12 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
     if (conversationId) {
       dispatch(fetchMessages({ conversationId }));
       dispatch(fetchPinnedMessages(conversationId));
+      // Reset all pagination refs so previous conversation's state doesn't leak
       prevMessagesLenRef.current = 0;
+      loadingOlderRef.current = false;
+      prevScrollHeightRef.current = 0;
+      prevScrollTopRef.current = 0;
+      oldestMsgCursorRef.current = null;
     }
   }, [conversationId, dispatch]);
 
@@ -106,7 +125,7 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
     if (userIds.length > 0) {
       appSocket.emit('presence:check', { userIds });
     }
-  }, [conversationId, conversation?.participants, currentUser?.id]);
+  }, [conversationId, conversation, currentUser?.id]);
 
   // Compute presence status text
   const presenceText = useMemo(() => {
@@ -129,17 +148,31 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
     return `${conversation.participants.length} thành viên${onlineCount > 0 ? ` · ${onlineCount} đang hoạt động` : ''}`;
   }, [conversation, currentUser?.id, userPresence]);
 
-  // Scroll to bottom when new messages arrive (not when loading older)
-  useEffect(() => {
+  // Restore scroll position BEFORE the browser paints to avoid visible jump.
+  // useLayoutEffect is essential here — useEffect would run after paint, causing a flash.
+  useLayoutEffect(() => {
+    const container = messagesContainerRef.current;
+
+    if (loadingOlderRef.current && !loadingMessages && container) {
+      const delta = container.scrollHeight - prevScrollHeightRef.current;
+      const savedScrollTop = prevScrollTopRef.current;
+      // Reset refs BEFORE setting scrollTop so any synchronous scroll event sees the correct state
+      loadingOlderRef.current = false;
+      prevScrollHeightRef.current = 0;
+      prevScrollTopRef.current = 0;
+      prevMessagesLenRef.current = messages.length;
+      container.scrollTop = savedScrollTop + Math.max(delta, 0);
+      return;
+    }
+
     if (messages.length > prevMessagesLenRef.current) {
       const added = messages.length - prevMessagesLenRef.current;
-      // Only auto-scroll if a small number of new messages arrived (i.e., not a batch load)
-      if (added <= 5) {
+      if (added <= 5 && !loadingMessages) {
         messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }
     }
     prevMessagesLenRef.current = messages.length;
-  }, [messages.length]);
+  }, [messages.length, loadingMessages]);
 
   // Initial scroll to bottom
   useEffect(() => {
@@ -149,43 +182,139 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
     return () => clearTimeout(timer);
   }, [conversationId]);
 
-  // Load more on scroll to top
-  const handleScroll = useCallback(() => {
-    const container = messagesContainerRef.current;
-    if (!container || loadingMessages || !hasMore) return;
-    if (container.scrollTop < 100) {
-      const oldestMsg = messages[0]; // ASC storage: index 0 = oldest message
-      if (oldestMsg) {
-        dispatch(fetchMessages({ conversationId, cursor: oldestMsg.createdAt }));
-      }
-    }
-  }, [conversationId, dispatch, hasMore, loadingMessages, messages]);
-
-  // Filter out deleted messages for current user
+  // Filter out deleted messages for current user.
+  // Also keep oldestMsgCursorRef up-to-date so handleScroll doesn't need messages in its deps.
   const visibleMessages = useMemo(() => {
-    return messages.filter((m) => !(m.deletedFor ?? []).includes(currentUser?.id ?? ''));
+    const filtered = messages.filter((m) => !(m.deletedFor ?? []).includes(currentUser?.id ?? ''));
+    oldestMsgCursorRef.current = (filtered[0] ?? messages[0])?.createdAt ?? null;
+    return filtered;
   }, [messages, currentUser]);
 
-  const handleScrollToMessage = useCallback((messageId: string) => {
-    const el = msgRefs.current.get(messageId);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setHighlightedId(messageId);
-      setTimeout(() => setHighlightedId(null), 2000);
+  // Load more on scroll to top.
+  // Uses refs only (loadingOlderRef, oldestMsgCursorRef) — no stale closures over messages array.
+  const handleScroll = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container || loadingOlderRef.current || !hasMore) return;
+    if (container.scrollTop < 100) {
+      const cursor = oldestMsgCursorRef.current;
+      if (cursor) {
+        loadingOlderRef.current = true;
+        prevScrollHeightRef.current = container.scrollHeight;
+        prevScrollTopRef.current = container.scrollTop;
+        dispatch(fetchMessages({ conversationId, cursor }));
+      }
     }
-  }, []);
+  }, [conversationId, dispatch, hasMore]);
+
+  // If list is too short to fill the viewport but server has more, auto-load additional batches.
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container || loadingMessages || loadingOlderRef.current || !hasMore) return;
+    if (container.scrollHeight <= container.clientHeight + 20) {
+      const cursor = oldestMsgCursorRef.current;
+      if (cursor) {
+        loadingOlderRef.current = true;
+        prevScrollHeightRef.current = container.scrollHeight;
+        prevScrollTopRef.current = container.scrollTop;
+        dispatch(fetchMessages({ conversationId, cursor }));
+      }
+    }
+  }, [conversationId, dispatch, hasMore, loadingMessages, messages.length]);
+
+  // Core jump logic — tries immediately; if not rendered, triggers first fetch and queues retry
+  const jumpToMessage = useCallback(
+    (messageId: string) => {
+      const el = msgRefs.current.get(messageId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setHighlightedId(messageId);
+        setTimeout(() => setHighlightedId(null), 2500);
+        pendingJumpRef.current = null;
+        return;
+      }
+      // Message not yet rendered — need to load older pages
+      if (!hasMore) {
+        toast.info('Tin nhắn không tồn tại hoặc đã bị xóa.');
+        return;
+      }
+      const cursor = oldestMsgCursorRef.current;
+      if (!cursor) return;
+      // Queue the jump and dispatch the FIRST fetch immediately
+      pendingJumpRef.current = { messageId, attempts: 1 };
+      loadingOlderRef.current = true;
+      prevScrollHeightRef.current = messagesContainerRef.current?.scrollHeight ?? 0;
+      prevScrollTopRef.current = messagesContainerRef.current?.scrollTop ?? 0;
+      dispatch(fetchMessages({ conversationId, cursor }));
+    },
+    [conversationId, dispatch, hasMore]
+  );
+
+  const handleScrollToMessage = useCallback(
+    (messageId: string) => {
+      jumpToMessage(messageId);
+    },
+    [jumpToMessage]
+  );
+
+  // Jump to message from AI search result: close panel, then jump
+  const handleJumpToMessage = useCallback(
+    (messageId: string, timestamp: string) => {
+      void timestamp;
+      setShowAiSearch(false);
+      // Small delay to let the panel close animation finish
+      setTimeout(() => jumpToMessage(messageId), 200);
+    },
+    [jumpToMessage]
+  );
+
+  // Effect: after each new batch of messages loads (messages.length changes), retry pending jump.
+  // The FIRST fetch is triggered inside jumpToMessage itself; this handles retries 2..5.
+  useEffect(() => {
+    const pending = pendingJumpRef.current;
+    if (!pending) return;
+
+    // Wait a tick for React to finish assigning DOM refs before checking
+    const timer = setTimeout(() => {
+      const el = msgRefs.current.get(pending.messageId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setHighlightedId(pending.messageId);
+        setTimeout(() => setHighlightedId(null), 2500);
+        pendingJumpRef.current = null;
+        return;
+      }
+
+      if (pending.attempts >= 5 || !hasMore) {
+        toast.info('Tin nhắn đã quá cũ hoặc không thể tải được.');
+        pendingJumpRef.current = null;
+        return;
+      }
+
+      // Target still not rendered — fetch next older page
+      const cursor = oldestMsgCursorRef.current;
+      if (cursor) {
+        pendingJumpRef.current = { ...pending, attempts: pending.attempts + 1 };
+        loadingOlderRef.current = true;
+        prevScrollHeightRef.current = messagesContainerRef.current?.scrollHeight ?? 0;
+        prevScrollTopRef.current = messagesContainerRef.current?.scrollTop ?? 0;
+        dispatch(fetchMessages({ conversationId, cursor }));
+      }
+    }, 150);
+
+    return () => clearTimeout(timer);
+  }, [messages.length, conversationId, dispatch, hasMore]);
 
   const myParticipant = conversation?.participants.find((p) => p.userId === currentUser?.id);
   const myRole = myParticipant?.role ?? 'member';
   const isAdminOrOwner = myRole === 'owner' || myRole === 'admin';
 
-  const typingIds = typingUsers[conversationId] ?? [];
   const typingLabel = useMemo(() => {
+    const typingIds = typingUsers[conversationId] ?? [];
     if (typingIds.length === 0) return null;
     if (typingIds.length === 1) return `${typingIds[0]} đang gõ...`;
     if (typingIds.length === 2) return `${typingIds[0]} và ${typingIds[1]} đang gõ...`;
     return `${typingIds.length} người đang gõ...`;
-  }, [typingIds]);
+  }, [typingUsers, conversationId]);
 
   const allPinned = pinnedMessages[conversationId] ?? [];
   const [pinnedBannerIdx, setPinnedBannerIdx] = useState(0);
@@ -218,7 +347,6 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
   const isOnlyAdminCanPin = !!(conversation?.settings as any)?.onlyAdminCanPin;
   const isBannedMember = !!myParticipant?.isBanned;
   const isInputRestricted = isOnlyAdminCanSend && !isAdminOrOwner;
-  const isChatBlocked = isBannedMember || isInputRestricted;
 
   // ── Call initiation ──────────────────────────────────────────────────────
   const callState = useAppSelector((s) => s.call);
@@ -238,7 +366,7 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
         conversationId,
         callType,
         participantIds,
-        callerName: currentUser.fullName ?? currentUser.username ?? 'Bạn',
+        callerName: currentUser.fullName ?? 'Bạn',
         callerAvatar: currentUser.avatar,
       });
 
@@ -301,6 +429,38 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
               <Info className="w-5 h-5" />
             </button>
           )}
+          {/* AI buttons */}
+          <button
+            onClick={() => {
+              setShowAiSearch((v) => !v);
+              setShowAiBot(false);
+            }}
+            title="Tìm kiếm thông minh (AI)"
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+              showAiSearch ? 'bg-[#EBF3FF] text-[#0068FF]' : 'text-gray-500 hover:bg-gray-100'
+            }`}
+          >
+            <Search className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => setShowAiSummary(true)}
+            title="Tóm tắt cuộc trò chuyện (AI)"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+          >
+            <FileText className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => {
+              setShowAiBot((v) => !v);
+              setShowAiSearch(false);
+            }}
+            title="BinChat AI Bot"
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+              showAiBot ? 'bg-[#EBF3FF] text-[#0068FF]' : 'text-gray-500 hover:bg-gray-100'
+            }`}
+          >
+            <Bot className="w-5 h-5" />
+          </button>
           {/* Call buttons */}
           {callState.status === 'idle' && (
             <>
@@ -554,6 +714,27 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
       {showGroupInfo && conversation?.type === 'group' && (
         <GroupInfoPanel conversation={conversation} onClose={() => setShowGroupInfo(false)} />
       )}
+
+      {/* AI Search panel */}
+      {showAiSearch && (
+        <AiSearchPanel
+          conversationId={conversationId}
+          onClose={() => setShowAiSearch(false)}
+          onScrollToMessage={handleJumpToMessage}
+          messages={messages}
+        />
+      )}
+
+      {/* AI Bot panel */}
+      {showAiBot && <AiBotPanel onClose={() => setShowAiBot(false)} />}
+
+      {/* AI Summary modal */}
+      <AiSummaryModal
+        open={showAiSummary}
+        onClose={() => setShowAiSummary(false)}
+        conversationId={conversationId}
+        messages={messages}
+      />
     </div>
   );
 }

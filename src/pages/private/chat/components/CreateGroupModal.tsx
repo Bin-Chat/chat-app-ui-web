@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react';
-import { X, Search, Check } from 'lucide-react';
+import { X, Search, Check, Users } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from '@/hooks/useRedux';
 import { createConversation } from '@/store/slices';
 import UserAvatar from '@/components/UserAvatar';
+
+const MAX_MEMBERS = 50;
 
 interface CreateGroupModalProps {
   onClose: () => void;
@@ -27,28 +29,37 @@ export default function CreateGroupModal({ onClose }: CreateGroupModalProps) {
     return friends.filter((f) => f.user.fullName?.toLowerCase().includes(q));
   }, [friends, search]);
 
+  const selectedFriends = useMemo(
+    () => friends.filter((f) => selectedIds.includes(f.user.id)),
+    [friends, selectedIds]
+  );
+
   const toggleSelect = (userId: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
-    );
+    setSelectedIds((prev) => {
+      if (prev.includes(userId)) return prev.filter((id) => id !== userId);
+      if (prev.length >= MAX_MEMBERS) {
+        toast.warning(`Nhóm tối đa ${MAX_MEMBERS} thành viên.`);
+        return prev;
+      }
+      return [...prev, userId];
+    });
   };
 
   const handleCreate = async () => {
-    if (!groupName.trim()) {
-      toast.error('Vui lòng nhập tên nhóm');
-      return;
-    }
     if (selectedIds.length < 2) {
       toast.error('Nhóm cần ít nhất 2 thành viên khác');
       return;
     }
+    // If no name entered, auto-generate from member last names
+    const autoName = selectedFriends.map((f) => f.user.fullName?.split(' ').pop()).join(', ');
+    const name = groupName.trim() || autoName;
     setCreating(true);
     try {
       const conv = await dispatch(
         createConversation({
           type: 'group',
           participantIds: selectedIds,
-          name: groupName.trim(),
+          name,
         })
       ).unwrap();
       toast.success('Tạo nhóm thành công!');
@@ -82,7 +93,7 @@ export default function CreateGroupModal({ onClose }: CreateGroupModalProps) {
             type="text"
             value={groupName}
             onChange={(e) => setGroupName(e.target.value)}
-            placeholder="Tên nhóm..."
+            placeholder="Tên nhóm (tùy chọn, mặc định lấy tên thành viên)"
             maxLength={100}
             className="w-full px-3 py-2.5 text-[14px] bg-gray-50 border border-gray-100 rounded-xl outline-none focus:border-[#0068FF]/40 focus:bg-white transition-colors"
           />
@@ -135,12 +146,17 @@ export default function CreateGroupModal({ onClose }: CreateGroupModalProps) {
             <ul className="space-y-0.5">
               {filtered.map((f) => {
                 const isSelected = selectedIds.includes(f.user.id);
+                const isDisabled = !isSelected && selectedIds.length >= MAX_MEMBERS;
                 return (
                   <li
                     key={f.user.id}
-                    onClick={() => toggleSelect(f.user.id)}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${
-                      isSelected ? 'bg-[#EBF3FF]' : 'hover:bg-gray-50'
+                    onClick={() => !isDisabled && toggleSelect(f.user.id)}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors ${
+                      isSelected
+                        ? 'bg-[#EBF3FF] cursor-pointer'
+                        : isDisabled
+                          ? 'opacity-40 cursor-not-allowed'
+                          : 'hover:bg-gray-50 cursor-pointer'
                     }`}
                   >
                     <UserAvatar src={f.user.avatar} name={f.user.fullName} size={36} />
@@ -149,9 +165,7 @@ export default function CreateGroupModal({ onClose }: CreateGroupModalProps) {
                     </p>
                     <div
                       className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-                        isSelected
-                          ? 'bg-[#0068FF] border-[#0068FF]'
-                          : 'border-gray-300'
+                        isSelected ? 'bg-[#0068FF] border-[#0068FF]' : 'border-gray-300'
                       }`}
                     >
                       {isSelected && <Check className="w-3 h-3 text-white" />}
@@ -165,12 +179,20 @@ export default function CreateGroupModal({ onClose }: CreateGroupModalProps) {
 
         {/* Footer */}
         <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between">
-          <span className="text-[12px] text-gray-400">
-            Đã chọn {selectedIds.length} thành viên
+          <span className="flex items-center gap-1.5 text-[12px] text-gray-400">
+            <Users className="w-3.5 h-3.5" />
+            <span>
+              <span
+                className={selectedIds.length >= MAX_MEMBERS ? 'text-red-500 font-semibold' : ''}
+              >
+                {selectedIds.length}
+              </span>
+              /{MAX_MEMBERS} thành viên
+            </span>
           </span>
           <button
             onClick={handleCreate}
-            disabled={creating || !groupName.trim() || selectedIds.length < 2}
+            disabled={creating || selectedIds.length < 2}
             className="px-5 py-2 rounded-xl bg-[#0068FF] text-white text-[13px] font-medium hover:bg-[#0054CC] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {creating ? 'Đang tạo...' : 'Tạo nhóm'}

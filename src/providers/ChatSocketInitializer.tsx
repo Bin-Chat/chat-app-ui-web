@@ -72,6 +72,7 @@ export function ChatSocketInitializer() {
 
     // Map raw socket payload (messageId) to Message shape (_id)
     const onMessageNew = (payload: any) => {
+      const createdAt = payload.createdAt ?? payload.timestamp ?? new Date().toISOString();
       const msg: Message = {
         _id: payload.messageId ?? payload._id,
         conversationId: payload.conversationId,
@@ -84,8 +85,8 @@ export function ChatSocketInitializer() {
         forwardedFrom: null,
         replyTo: payload.replyTo ?? null,
         reactions: [],
-        createdAt: new Date(payload.createdAt).toISOString(),
-        updatedAt: new Date(payload.createdAt).toISOString(),
+        createdAt: new Date(createdAt).toISOString(),
+        updatedAt: new Date(createdAt).toISOString(),
       };
       dispatch(socketMessageNew(msg));
       // Notify only when message is from someone else
@@ -106,7 +107,7 @@ export function ChatSocketInitializer() {
       }
     };
 
-    const onMessageRevoked = (payload: { messageId: string; conversationId: string }) => {
+    const onMessageRevoked = (payload: { messageId: string; conversationId: string; revokedBy?: string }) => {
       dispatch(socketMessageRevoked(payload));
     };
 

@@ -15,6 +15,8 @@ import {
   Video,
   PhoneMissed,
   VideoOff,
+  Languages,
+  ShieldAlert,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
@@ -24,6 +26,7 @@ import { revokeMessage, deleteMessage, reactToMessage } from '@/store/slices';
 import UserAvatar from '@/components/UserAvatar';
 import type { Message } from '@/types/chat.type';
 import ImageGrid from './ImageGrid';
+import TranslateMessageModal from './TranslateMessageModal';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
@@ -107,6 +110,7 @@ export default function MessageBubble({
   const currentUser = useAppSelector((s) => s.auth.user);
   const [showReactions, setShowReactions] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showTranslate, setShowTranslate] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
 
   const showActions = isHovered;
@@ -308,10 +312,23 @@ export default function MessageBubble({
           </div>
         )}
         <div className="relative">
-          <div className="px-3 py-2 rounded-2xl bg-gray-100 text-[13px] text-gray-400 italic max-w-[420px]">
-            Tin nhắn đã được thu hồi
-            <span className="ml-2 text-[11px] text-gray-300">{timeStr}</span>
-          </div>
+          {message.revokedBy === 'ai-moderation' ? (
+            <div className="px-3 py-2.5 rounded-2xl border border-red-200 bg-red-50 max-w-[400px]">
+              <div className="flex items-start gap-2">
+                <ShieldAlert className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-[12px] font-semibold text-red-600">Vi phạm chính sách cộng đồng</p>
+                  <p className="text-[11px] text-red-400 mt-0.5">Tin nhắn này đã bị hệ thống AI kiểm duyệt và xóa tự động do nội dung không phù hợp.</p>
+                </div>
+              </div>
+              <span className="block text-right text-[10px] text-red-300 mt-1">{timeStr}</span>
+            </div>
+          ) : (
+            <div className="px-3 py-2 rounded-2xl bg-gray-100 text-[13px] text-gray-400 italic max-w-[420px]">
+              Tin nhắn đã được thu hồi
+              <span className="ml-2 text-[11px] text-gray-300">{timeStr}</span>
+            </div>
+          )}
           {/* Allow the user to also remove this revoked placeholder from their view */}
           <AnimatePresence>
             {showActions && (
@@ -587,6 +604,16 @@ export default function MessageBubble({
                   <Copy className="w-3.5 h-3.5" />
                 </ActionBtn>
               )}
+              {message.content && !message.revokedAt && (
+                <ActionBtn
+                  label="Dịch tin nhắn"
+                  onClick={() => { setShowTranslate(true); onHoverOut?.(); }}
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-gray-400 hover:bg-purple-50 hover:text-purple-500 transition-colors"
+                >
+                  <Languages className="w-3.5 h-3.5" />
+                </ActionBtn>
+              )}
+
               {canEdit && onEdit && (
                 <ActionBtn
                   label="Chỉnh sửa"
@@ -661,6 +688,13 @@ export default function MessageBubble({
         </AnimatePresence>
       </div>
       {deleteDialog}
+      {showTranslate && message.content && (
+        <TranslateMessageModal
+          open={showTranslate}
+          onClose={() => setShowTranslate(false)}
+          messageContent={message.content}
+        />
+      )}
     </div>
   );
 }

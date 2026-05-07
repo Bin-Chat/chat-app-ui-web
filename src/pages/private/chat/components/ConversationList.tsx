@@ -164,7 +164,9 @@ export default function ConversationList({ activeId, onSelect }: ConversationLis
                         <p
                           className={`text-[12px] truncate mt-0.5 ${unread > 0 ? 'font-semibold text-gray-600' : 'text-gray-400'}`}
                         >
-                          {lastMsg.content || '[Tệp đính kèm]'}
+                          {lastMsg.revokedAt
+                            ? <span className="italic">Tin nhắn đã thu hồi</span>
+                            : (lastMsg.content || '[Tệp đính kèm]')}
                         </p>
                       )}
                     </div>

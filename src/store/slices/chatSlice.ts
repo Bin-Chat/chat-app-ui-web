@@ -427,13 +427,25 @@ const chatSlice = createSlice({
     },
     socketMessageRevoked: (
       state,
-      action: PayloadAction<{ messageId: string; conversationId: string }>
+      action: PayloadAction<{ messageId: string; conversationId: string; revokedBy?: string }>
     ) => {
-      const { messageId, conversationId } = action.payload;
+      const { messageId, conversationId, revokedBy } = action.payload;
       const msgs = state.messages[conversationId];
       if (msgs) {
         const msg = msgs.find((m) => m._id === messageId);
-        if (msg) msg.revokedAt = new Date().toISOString();
+        if (msg) {
+          msg.revokedAt = new Date().toISOString();
+          if (revokedBy) msg.revokedBy = revokedBy;
+        }
+      }
+      // Also update lastMessage on conversation if it refers to this message
+      const conv = state.conversations.find((c) => c._id === conversationId);
+      if (conv?.lastMessage) {
+        const msgs2 = state.messages[conversationId];
+        const isLast = msgs2 && msgs2.length > 0 && msgs2[msgs2.length - 1]?._id === messageId;
+        if (isLast) {
+          conv.lastMessage = { ...conv.lastMessage, revokedAt: new Date().toISOString() };
+        }
       }
     },
     socketConversationUpdated: (
@@ -750,7 +762,18 @@ const chatSlice = createSlice({
       const msgs = state.messages[conversationId];
       if (msgs) {
         const msg = msgs.find((m) => m._id === messageId);
-        if (msg) msg.revokedAt = new Date().toISOString();
+        if (msg) {
+          msg.revokedAt = new Date().toISOString();
+        }
+      }
+      // Update lastMessage preview if this was the last message
+      const conv = state.conversations.find((c) => c._id === conversationId);
+      if (conv?.lastMessage) {
+        const msgs2 = state.messages[conversationId];
+        const isLast = msgs2 && msgs2.length > 0 && msgs2[msgs2.length - 1]?._id === messageId;
+        if (isLast) {
+          conv.lastMessage = { ...conv.lastMessage, revokedAt: new Date().toISOString() };
+        }
       }
     });
 

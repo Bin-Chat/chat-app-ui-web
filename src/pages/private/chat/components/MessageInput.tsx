@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, type KeyboardEvent } from 'react';
-import { Send, Smile, Paperclip, X, Image, FileText, Film, Reply, Pencil } from 'lucide-react';
+import { Send, Smile, Paperclip, X, Image, FileText, Film, Reply, Pencil, Wand2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 
 import { useAppDispatch, useAppSelector } from '@/hooks/useRedux';
@@ -7,6 +7,7 @@ import { sendMessage, editMessage } from '@/store/slices';
 import { authServices } from '@/services/authServices';
 import { appSocket } from '@/services/appSocket';
 import EmojiPicker from './EmojiPicker';
+import RewriteMessageModal from './RewriteMessageModal';
 import type { Message } from '@/types/chat.type';
 
 interface MessageInputProps {
@@ -139,6 +140,7 @@ export default function MessageInput({
   const [attachments, setAttachments] = useState<PendingAttachment[]>([]);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showFilePicker, setShowFilePicker] = useState(false);
+  const [showRewrite, setShowRewrite] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -595,6 +597,17 @@ export default function MessageInput({
           className="flex-1 resize-none text-[13px] py-2.5 px-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:border-[#0068FF]/40 focus:bg-white transition-colors max-h-[120px] leading-relaxed"
         />
 
+        {/* Rewrite trigger — visible only when composing text */}
+        {text.trim() && (
+          <button
+            onClick={() => setShowRewrite(true)}
+            title="Viết lại bằng AI"
+            className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:bg-violet-50 hover:text-violet-500 transition-colors flex-shrink-0"
+          >
+            <Wand2 className="w-4 h-4" />
+          </button>
+        )}
+
         {/* Send */}
         <button
           onClick={handleSend}
@@ -604,6 +617,27 @@ export default function MessageInput({
           <Send className="w-4 h-4" />
         </button>
       </div>
+
+      {/* Rewrite modal */}
+      {showRewrite && (
+        <RewriteMessageModal
+          open={showRewrite}
+          onClose={() => setShowRewrite(false)}
+          messageContent={text}
+          onSelectVariant={(variant) => {
+            setText(variant);
+            setShowRewrite(false);
+            setTimeout(() => {
+              const el = textareaRef.current;
+              if (el) {
+                el.style.height = 'auto';
+                el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+                el.focus();
+              }
+            }, 50);
+          }}
+        />
+      )}
     </div>
   );
 }
