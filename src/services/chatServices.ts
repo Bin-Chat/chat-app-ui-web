@@ -18,7 +18,7 @@ interface SendMessagePayload {
   } | null;
   attachments?: {
     url: string;
-    type: 'image' | 'video' | 'file';
+    type: 'image' | 'video' | 'file' | 'voice';
     filename: string;
     size?: number;
     mimeType?: string;
