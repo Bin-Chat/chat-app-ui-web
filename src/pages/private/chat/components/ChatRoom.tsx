@@ -20,6 +20,7 @@ import MessageBubble from './MessageBubble';
 import MessageInput from './MessageInput';
 import ForwardModal from './ForwardModal';
 import GroupInfoPanel from './GroupInfoPanel';
+import DirectInfoPanel from './DirectInfoPanel';
 import AiSearchPanel from './AiSearchPanel';
 import AiSummaryModal from './AiSummaryModal';
 import AiBotPanel from './AiBotPanel';
@@ -419,16 +420,14 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
               </p>
             )}
           </div>
-          {conversation?.type === 'group' && (
-            <button
-              onClick={() => setShowGroupInfo((v) => !v)}
-              className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
-                showGroupInfo ? 'bg-[#EBF3FF] text-[#0068FF]' : 'text-gray-500 hover:bg-gray-100'
-              }`}
-            >
-              <Info className="w-5 h-5" />
-            </button>
-          )}
+          <button
+            onClick={() => setShowGroupInfo((v) => !v)}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+              showGroupInfo ? 'bg-[#EBF3FF] text-[#0068FF]' : 'text-gray-500 hover:bg-gray-100'
+            }`}
+          >
+            <Info className="w-5 h-5" />
+          </button>
           {/* AI buttons */}
           <button
             onClick={() => {
@@ -710,9 +709,17 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
         )}
       </div>
 
-      {/* Group info panel */}
+      {/* Info panel — group or direct */}
       {showGroupInfo && conversation?.type === 'group' && (
         <GroupInfoPanel conversation={conversation} onClose={() => setShowGroupInfo(false)} />
+      )}
+      {showGroupInfo && conversation?.type === 'direct' && (
+        <DirectInfoPanel
+          conversation={conversation}
+          onClose={() => setShowGroupInfo(false)}
+          onAudioCall={() => initiateCall('audio')}
+          onVideoCall={() => initiateCall('video')}
+        />
       )}
 
       {/* AI Search panel */}

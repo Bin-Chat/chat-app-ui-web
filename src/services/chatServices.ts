@@ -165,4 +165,22 @@ export const chatServices = {
     authorizedAxios
       .patch(`/api/chat/conversations/${conversationId}/me`, settings)
       .then((r) => r.data),
+
+  getConversationMedia: (
+    conversationId: string,
+    type: 'image' | 'file' | 'link',
+    cursor?: string
+  ) =>
+    authorizedAxios
+      .get(`/api/chat/conversations/${conversationId}/media`, {
+        params: { type, cursor, limit: 20 },
+      })
+      .then(
+        (r) =>
+          r.data as {
+            items: Record<string, unknown>[];
+            hasMore: boolean;
+            nextCursor: string | null;
+          }
+      ),
 };

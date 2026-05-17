@@ -19,6 +19,7 @@ import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from '@/hooks/useRedux';
+import MediaInfoPanel from './MediaInfoPanel';
 import {
   addGroupMembers,
   removeGroupMember,
@@ -432,6 +433,9 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
               })}
             </ul>
           </div>
+
+          {/* Media / File / Link */}
+          <MediaInfoPanel conversationId={conversation._id} />
 
           {/* Actions */}
           <div className="px-4 py-3 border-t border-gray-100 space-y-1">
