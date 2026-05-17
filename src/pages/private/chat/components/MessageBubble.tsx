@@ -143,17 +143,38 @@ export default function MessageBubble({
   const images = message.attachments.filter((a) => a.type === 'image');
   const videos = message.attachments.filter((a) => a.type === 'video');
   const files = message.attachments.filter((a) => a.type === 'file');
+  const audios = message.attachments.filter((a) => a.type === 'audio');
   const attachmentsOnly =
-    (images.length > 0 || videos.length > 0 || files.length > 0) && !message.content;
+    (images.length > 0 || videos.length > 0 || files.length > 0 || audios.length > 0) &&
+    !message.content;
   // Pure image message (no text, no files, no video) — display without bubble background
   const imageOnly =
-    images.length > 0 && files.length === 0 && videos.length === 0 && !message.content;
+    images.length > 0 &&
+    files.length === 0 &&
+    videos.length === 0 &&
+    audios.length === 0 &&
+    !message.content;
   // Pure video message — no bubble background
   const videoOnly =
-    videos.length > 0 && images.length === 0 && files.length === 0 && !message.content;
+    videos.length > 0 &&
+    images.length === 0 &&
+    files.length === 0 &&
+    audios.length === 0 &&
+    !message.content;
   // Pure file message — minimal card style, no coloured background
   const fileOnly =
-    files.length > 0 && images.length === 0 && videos.length === 0 && !message.content;
+    files.length > 0 &&
+    images.length === 0 &&
+    videos.length === 0 &&
+    audios.length === 0 &&
+    !message.content;
+  // Pure audio message — waveform card, no coloured background
+  const audioOnly =
+    audios.length > 0 &&
+    images.length === 0 &&
+    videos.length === 0 &&
+    files.length === 0 &&
+    !message.content;
 
   const handleRevoke = async () => {
     try {
@@ -317,8 +338,13 @@ export default function MessageBubble({
               <div className="flex items-start gap-2">
                 <ShieldAlert className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-[12px] font-semibold text-red-600">Vi phạm chính sách cộng đồng</p>
-                  <p className="text-[11px] text-red-400 mt-0.5">Tin nhắn này đã bị hệ thống AI kiểm duyệt và xóa tự động do nội dung không phù hợp.</p>
+                  <p className="text-[12px] font-semibold text-red-600">
+                    Vi phạm chính sách cộng đồng
+                  </p>
+                  <p className="text-[11px] text-red-400 mt-0.5">
+                    Tin nhắn này đã bị hệ thống AI kiểm duyệt và xóa tự động do nội dung không phù
+                    hợp.
+                  </p>
                 </div>
               </div>
               <span className="block text-right text-[10px] text-red-300 mt-1">{timeStr}</span>
@@ -383,8 +409,8 @@ export default function MessageBubble({
             imageOnly
               ? // Pure image — no background, images fill the rounded container
                 'overflow-hidden'
-              : videoOnly || fileOnly
-                ? // Pure video / pure file — transparent, no coloured background
+              : videoOnly || fileOnly || audioOnly
+                ? // Pure video / pure file / pure audio — transparent, no coloured background
                   'overflow-hidden'
                 : attachmentsOnly
                   ? isMine
@@ -417,7 +443,7 @@ export default function MessageBubble({
                 </p>
                 <p className={`text-[12px] truncate ${isMine ? 'text-white/60' : 'text-gray-500'}`}>
                   {message.replyTo.content ||
-                    `[${message.replyTo.attachmentType === 'image' ? 'Hình ảnh' : message.replyTo.attachmentType === 'video' ? 'Video' : 'Tệp tin'}]`}
+                    `[${message.replyTo.attachmentType === 'image' ? 'Hình ảnh' : message.replyTo.attachmentType === 'video' ? 'Video' : message.replyTo.attachmentType === 'audio' ? 'Tin nhắn thoại' : 'Tệp tin'}]`}
                 </p>
               </button>
             </div>
@@ -521,6 +547,30 @@ export default function MessageBubble({
             </p>
           )}
 
+          {/* Audio attachments */}
+          {audios.map((a) => (
+            <div
+              key={a.url}
+              className={`flex items-center gap-3 py-2 px-3 rounded-xl my-0.5 ${
+                audioOnly
+                  ? isMine
+                    ? 'bg-[#0068FF]/10'
+                    : 'bg-gray-50 border border-gray-100'
+                  : isMine
+                    ? 'bg-white/15 border border-white/20'
+                    : 'bg-gray-50 border border-gray-100'
+              }`}
+            >
+              <audio
+                controls
+                preload="metadata"
+                src={a.url}
+                className="h-9 max-w-[240px]"
+                style={{ accentColor: '#0068FF' }}
+              />
+            </div>
+          ))}
+
           {/* Time */}
           <p
             className={`text-[11px] mt-1 ${
@@ -607,7 +657,10 @@ export default function MessageBubble({
               {message.content && !message.revokedAt && (
                 <ActionBtn
                   label="Dịch tin nhắn"
-                  onClick={() => { setShowTranslate(true); onHoverOut?.(); }}
+                  onClick={() => {
+                    setShowTranslate(true);
+                    onHoverOut?.();
+                  }}
                   className="w-7 h-7 rounded-md flex items-center justify-center text-gray-400 hover:bg-purple-50 hover:text-purple-500 transition-colors"
                 >
                   <Languages className="w-3.5 h-3.5" />

@@ -1,5 +1,18 @@
 import { useState, useRef, useCallback, type KeyboardEvent } from 'react';
-import { Send, Smile, Paperclip, X, Image, FileText, Film, Reply, Pencil, Wand2 } from 'lucide-react';
+import {
+  Send,
+  Smile,
+  Paperclip,
+  X,
+  Image,
+  FileText,
+  Film,
+  Reply,
+  Pencil,
+  Wand2,
+  Mic,
+  Square,
+} from 'lucide-react';
 import { toast } from 'react-toastify';
 
 import { useAppDispatch, useAppSelector } from '@/hooks/useRedux';
@@ -9,6 +22,48 @@ import { appSocket } from '@/services/appSocket';
 import EmojiPicker from './EmojiPicker';
 import RewriteMessageModal from './RewriteMessageModal';
 import type { Message } from '@/types/chat.type';
+
+// ── WAV encoder (cross-platform, no deps) ────────────────────────────────────
+function writeString(view: DataView, offset: number, str: string) {
+  for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+}
+function encodeWav(audioBuffer: AudioBuffer): ArrayBuffer {
+  const sampleRate = audioBuffer.sampleRate;
+  const samples = audioBuffer.getChannelData(0); // mono
+  const buf = new ArrayBuffer(44 + samples.length * 2);
+  const v = new DataView(buf);
+  writeString(v, 0, 'RIFF');
+  v.setUint32(4, 36 + samples.length * 2, true);
+  writeString(v, 8, 'WAVE');
+  writeString(v, 12, 'fmt ');
+  v.setUint32(16, 16, true);
+  v.setUint16(20, 1, true); // PCM
+  v.setUint16(22, 1, true); // mono
+  v.setUint32(24, sampleRate, true);
+  v.setUint32(28, sampleRate * 2, true);
+  v.setUint16(32, 2, true);
+  v.setUint16(34, 16, true); // 16-bit
+  writeString(v, 36, 'data');
+  v.setUint32(40, samples.length * 2, true);
+  let off = 44;
+  for (let i = 0; i < samples.length; i++) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    v.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    off += 2;
+  }
+  return buf;
+}
+async function convertToWav(blob: Blob, filename: string): Promise<File> {
+  const arrayBuffer = await blob.arrayBuffer();
+  const ctx = new AudioContext();
+  try {
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    const wavBuffer = encodeWav(audioBuffer);
+    return new File([wavBuffer], filename, { type: 'audio/wav' });
+  } finally {
+    ctx.close();
+  }
+}
 
 interface MessageInputProps {
   conversationId: string;
@@ -22,22 +77,24 @@ interface MessageInputProps {
 interface PendingAttachment {
   file: File;
   preview?: string; // image objectURL or video thumbnail data URL
-  type: 'image' | 'video' | 'file';
+  type: 'image' | 'video' | 'file' | 'audio';
   uploading: boolean;
   progress: number;
 }
 
 // Client-side file size limits (must match backend file-policy.ts)
-const FILE_SIZE_LIMITS: Record<'image' | 'video' | 'file', number> = {
+const FILE_SIZE_LIMITS: Record<'image' | 'video' | 'file' | 'audio', number> = {
   image: 10 * 1024 * 1024, // 10 MB
   video: 50 * 1024 * 1024, // 50 MB
   file: 20 * 1024 * 1024, // 20 MB (backend document limit)
+  audio: 10 * 1024 * 1024, // 10 MB
 };
 
-const FILE_SIZE_LABELS: Record<'image' | 'video' | 'file', string> = {
+const FILE_SIZE_LABELS: Record<'image' | 'video' | 'file' | 'audio', string> = {
   image: '10 MB',
   video: '50 MB',
   file: '20 MB',
+  audio: '10 MB',
 };
 
 /** Extract a human-readable message from an API error */
@@ -63,15 +120,17 @@ function extractApiError(err: unknown): string {
   return String(err);
 }
 
-function getFileCategory(file: File): 'image' | 'video' | 'document' {
+function getFileCategory(file: File): 'image' | 'video' | 'document' | 'audio' {
   if (file.type.startsWith('image/')) return 'image';
   if (file.type.startsWith('video/')) return 'video';
+  if (file.type.startsWith('audio/')) return 'audio';
   return 'document';
 }
 
-function getAttachmentType(file: File): 'image' | 'video' | 'file' {
+function getAttachmentType(file: File): 'image' | 'video' | 'file' | 'audio' {
   if (file.type.startsWith('image/')) return 'image';
   if (file.type.startsWith('video/')) return 'video';
+  if (file.type.startsWith('audio/')) return 'audio';
   return 'file';
 }
 
@@ -141,6 +200,12 @@ export default function MessageInput({
   const [showEmoji, setShowEmoji] = useState(false);
   const [showFilePicker, setShowFilePicker] = useState(false);
   const [showRewrite, setShowRewrite] = useState(false);
+  // Voice recording state
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -186,6 +251,71 @@ export default function MessageInput({
       stopTyping();
     }, 4000);
   }, [conversationId, currentUserName, stopTyping]);
+
+  // ── Voice recording ──────────────────────────────────────────────────────────
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // Use any supported format — will be converted to WAV for cross-platform compat
+      const PREFERRED = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/ogg;codecs=opus',
+        'audio/ogg',
+        'audio/mp4',
+      ];
+      const mimeType = PREFERRED.find((f) => MediaRecorder.isTypeSupported(f)) ?? '';
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        const rawBlob = new Blob(audioChunksRef.current, { type: mimeType || 'audio/webm' });
+        const wavFilename = `voice_${Date.now()}.wav`;
+        let audioFile: File;
+        try {
+          // Convert to WAV so iOS/Android can play it
+          audioFile = await convertToWav(rawBlob, wavFilename);
+        } catch {
+          // Fallback: use raw blob if conversion fails
+          audioFile = new File([rawBlob], wavFilename, { type: 'audio/wav' });
+        }
+        if (audioFile.size > FILE_SIZE_LIMITS.audio) {
+          toast.error('Ghi âm vượt quá giới hạn 10 MB');
+          return;
+        }
+        setAttachments((prev) => [
+          ...prev,
+          { file: audioFile, type: 'audio', uploading: false, progress: 0 },
+        ]);
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setIsRecording(true);
+      setRecordingSeconds(0);
+      recordingTimerRef.current = setInterval(() => {
+        setRecordingSeconds((prev) => prev + 1);
+      }, 1000);
+    } catch (err: unknown) {
+      toast.error((err as Error)?.message ?? 'Không thể truy cập microphone');
+    }
+  };
+
+  const stopRecording = () => {
+    if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
+    setIsRecording(false);
+    setRecordingSeconds(0);
+    mediaRecorderRef.current?.stop();
+    mediaRecorderRef.current = null;
+  };
+
+  const fmtRecordingTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -453,7 +583,7 @@ export default function MessageInput({
             <p className="text-[12px] text-gray-500 truncate">
               {replyingTo.content ||
                 (replyingTo.attachments?.[0]
-                  ? `[${replyingTo.attachments[0].type === 'image' ? 'Hình ảnh' : replyingTo.attachments[0].type === 'video' ? 'Video' : 'Tệp tin'}]`
+                  ? `[${replyingTo.attachments[0].type === 'image' ? 'Hình ảnh' : replyingTo.attachments[0].type === 'video' ? 'Video' : replyingTo.attachments[0].type === 'audio' ? 'Tin nhắn thoại' : 'Tệp tin'}]`
                   : '')}
             </p>
           </div>
@@ -481,6 +611,11 @@ export default function MessageInput({
                       </div>
                     </div>
                   )}
+                </div>
+              ) : att.type === 'audio' ? (
+                <div className="w-16 h-16 rounded-lg border border-gray-700 flex flex-col items-center justify-center bg-gray-900">
+                  <Mic className="w-5 h-5 text-gray-400" />
+                  <span className="text-[9px] text-gray-400 mt-1">Đã ghi âm</span>
                 </div>
               ) : (
                 <div className="w-16 h-16 rounded-lg border border-gray-200 flex flex-col items-center justify-center bg-gray-50">
@@ -587,15 +722,41 @@ export default function MessageInput({
         </div>
 
         {/* Text area */}
-        <textarea
-          ref={textareaRef}
-          value={text}
-          onChange={handleTextChange}
-          onKeyDown={handleKeyDown}
-          placeholder="Nhập tin nhắn..."
-          rows={1}
-          className="flex-1 resize-none text-[13px] py-2.5 px-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:border-[#0068FF]/40 focus:bg-white transition-colors max-h-[120px] leading-relaxed"
-        />
+        {isRecording ? (
+          <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+            <span className="text-[13px] text-red-600 font-medium">
+              Đang ghi âm... {fmtRecordingTime(recordingSeconds)}
+            </span>
+          </div>
+        ) : (
+          <textarea
+            ref={textareaRef}
+            value={text}
+            onChange={handleTextChange}
+            onKeyDown={handleKeyDown}
+            placeholder="Nhập tin nhắn..."
+            rows={1}
+            className="flex-1 resize-none text-[13px] py-2.5 px-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:border-[#0068FF]/40 focus:bg-white transition-colors max-h-[120px] leading-relaxed"
+          />
+        )}
+
+        {/* Mic / Voice recording button */}
+        <button
+          onClick={isRecording ? stopRecording : startRecording}
+          title={isRecording ? 'Dừng ghi âm' : 'Ghi âm tin nhắn thoại'}
+          className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors flex-shrink-0 ${
+            isRecording
+              ? 'bg-red-500 text-white hover:bg-red-600'
+              : 'text-gray-400 hover:bg-gray-100 hover:text-[#0068FF]'
+          }`}
+        >
+          {isRecording ? (
+            <Square className="w-4 h-4" fill="currentColor" />
+          ) : (
+            <Mic className="w-5 h-5" />
+          )}
+        </button>
 
         {/* Rewrite trigger — visible only when composing text */}
         {text.trim() && (
