@@ -723,11 +723,19 @@ const chatSlice = createSlice({
       .addCase(fetchMessages.fulfilled, (state, action) => {
         const { conversationId, messages, hasMore } = action.payload;
         const existing = state.messages[conversationId] ?? [];
-        // API returns DESC (newest first) — reverse to ASC (oldest first) for correct top→bottom display
         const existingIds = new Set(existing.map((m) => m._id));
-        const newMsgs = messages.filter((m) => !existingIds.has(m._id)).reverse();
+        const fetchedMap = new Map(messages.map((m) => [m._id, m]));
+
+        // Update existing messages that now have metadata (e.g. reminder_created socket arrived without metadata)
+        const updated = existing.map((m) => {
+          const fresh = fetchedMap.get(m._id);
+          if (fresh && fresh.metadata && !m.metadata) return { ...m, metadata: fresh.metadata };
+          return m;
+        });
+
         // Prepend older messages before existing (pagination scrolls up to load older)
-        state.messages[conversationId] = [...newMsgs, ...existing];
+        const newMsgs = messages.filter((m) => !existingIds.has(m._id)).reverse();
+        state.messages[conversationId] = [...newMsgs, ...updated];
         state.hasMore[conversationId] = hasMore;
         state.loadingMessages = false;
       })

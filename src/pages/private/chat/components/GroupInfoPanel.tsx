@@ -20,6 +20,7 @@ import { useNavigate } from 'react-router-dom';
 
 import { useAppDispatch, useAppSelector } from '@/hooks/useRedux';
 import MediaInfoPanel from './MediaInfoPanel';
+import ReminderListModal from './ReminderListModal';
 import {
   addGroupMembers,
   removeGroupMember,
@@ -59,6 +60,7 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
   const [showSettings, setShowSettings] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [showTransferForLeave, setShowTransferForLeave] = useState(false);
+  const [showReminderList, setShowReminderList] = useState(false);
 
   const myParticipant = conversation.participants.find((p) => p.userId === currentUser?.id);
   const myRole = myParticipant?.role ?? 'member';
@@ -437,6 +439,31 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
           {/* Media / File / Link */}
           <MediaInfoPanel conversationId={conversation._id} />
 
+          {/* Bảng tin nhóm */}
+          <div className="border-t border-gray-100">
+            <div className="px-4 py-3">
+              <h4 className="text-[13px] font-semibold text-gray-700 mb-2">Bảng tin nhóm</h4>
+              <button
+                onClick={() => setShowReminderList(true)}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left"
+              >
+                <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                  <svg
+                    className="w-4 h-4 text-blue-500"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    viewBox="0 0 24 24"
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M12 6v6l4 2" />
+                  </svg>
+                </div>
+                <span className="text-[13px] text-gray-700">Danh sách nhắc hẹn</span>
+              </button>
+            </div>
+          </div>
+
           {/* Actions */}
           <div className="px-4 py-3 border-t border-gray-100 space-y-1">
             {isOwner && (
@@ -537,6 +564,15 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
       {/* Edit info sub-modal */}
       {showEditInfo && (
         <EditGroupModal conversation={conversation} onClose={() => setShowEditInfo(false)} />
+      )}
+
+      {/* Reminder list modal */}
+      {showReminderList && (
+        <ReminderListModal
+          conversationId={conversation._id}
+          currentUserId={currentUser?.id ?? ''}
+          onClose={() => setShowReminderList(false)}
+        />
       )}
     </>
   );

@@ -1,6 +1,8 @@
-import { X, Phone, Video } from 'lucide-react';
+import { X, Phone, Video, Clock } from 'lucide-react';
+import { useState } from 'react';
 import UserAvatar from '@/components/UserAvatar';
 import MediaInfoPanel from './MediaInfoPanel';
+import ReminderListModal from './ReminderListModal';
 import type { Conversation } from '@/types/chat.type';
 
 interface DirectInfoPanelProps {
@@ -8,6 +10,7 @@ interface DirectInfoPanelProps {
   onClose: () => void;
   onAudioCall?: () => void;
   onVideoCall?: () => void;
+  currentUserId?: string;
 }
 
 export default function DirectInfoPanel({
@@ -15,8 +18,10 @@ export default function DirectInfoPanel({
   onClose,
   onAudioCall,
   onVideoCall,
+  currentUserId,
 }: DirectInfoPanelProps) {
   const other = conversation.otherUser;
+  const [showReminderList, setShowReminderList] = useState(false);
 
   return (
     <div className="w-[320px] h-full bg-white border-l border-gray-100 flex flex-col flex-shrink-0">
@@ -75,7 +80,29 @@ export default function DirectInfoPanel({
 
         {/* Media / File / Link sections */}
         <MediaInfoPanel conversationId={conversation._id} />
+
+        {/* Nhắc hẹn */}
+        <div className="border-t border-gray-100 px-4 py-3">
+          <h4 className="text-[13px] font-semibold text-gray-700 mb-2">Tiện ích</h4>
+          <button
+            onClick={() => setShowReminderList(true)}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left"
+          >
+            <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+              <Clock className="w-4 h-4 text-blue-500" />
+            </div>
+            <span className="text-[13px] text-gray-700">Danh sách nhắc hẹn</span>
+          </button>
+        </div>
       </div>
+
+      {showReminderList && (
+        <ReminderListModal
+          conversationId={conversation._id}
+          currentUserId={currentUserId ?? ''}
+          onClose={() => setShowReminderList(false)}
+        />
+      )}
     </div>
   );
 }

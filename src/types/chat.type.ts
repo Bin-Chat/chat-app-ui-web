@@ -45,6 +45,7 @@ export interface Message {
   reactions: Reaction[];
   isEdited?: boolean;
   editedAt?: string | null;
+  metadata?: Record<string, any> | null;
   createdAt: string;
   updatedAt: string;
 }

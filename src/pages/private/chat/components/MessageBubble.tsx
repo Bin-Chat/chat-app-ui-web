@@ -27,6 +27,7 @@ import UserAvatar from '@/components/UserAvatar';
 import type { Message } from '@/types/chat.type';
 import ImageGrid from './ImageGrid';
 import TranslateMessageModal from './TranslateMessageModal';
+import ReminderMessageCard from './ReminderMessageCard';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
@@ -254,6 +255,19 @@ export default function MessageBubble({
   // System messages (call events, group events) render as centered non-interactive pills
   if (isSystemMsg) {
     const content = message.content ?? '';
+
+    // ── Reminder card ────────────────────────────────────────────────
+    if (message.metadata?.type === 'reminder_created') {
+      return (
+        <ReminderMessageCard
+          metadata={message.metadata as any}
+          currentUserId={currentUser?.id ?? ''}
+          currentUserName={currentUser?.fullName ?? ''}
+          conversationId={conversationId}
+          messageId={message._id}
+        />
+      );
+    }
 
     // ── Call system messages ─────────────────────────────────────────
     // New format: '[VOICE] ...' / '[VIDEO] ...' — legacy: '📞 ...' / '📹 ...'

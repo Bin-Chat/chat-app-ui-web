@@ -85,6 +85,7 @@ export function ChatSocketInitializer() {
         forwardedFrom: null,
         replyTo: payload.replyTo ?? null,
         reactions: [],
+        metadata: payload.metadata ?? null,
         createdAt: new Date(createdAt).toISOString(),
         updatedAt: new Date(createdAt).toISOString(),
       };
@@ -107,7 +108,11 @@ export function ChatSocketInitializer() {
       }
     };
 
-    const onMessageRevoked = (payload: { messageId: string; conversationId: string; revokedBy?: string }) => {
+    const onMessageRevoked = (payload: {
+      messageId: string;
+      conversationId: string;
+      revokedBy?: string;
+    }) => {
       dispatch(socketMessageRevoked(payload));
     };
 
@@ -374,6 +379,33 @@ export function ChatSocketInitializer() {
     appSocket.on('call:participant_left', onCallParticipantLeft);
     appSocket.on('call:busy', onCallBusy);
 
+    const onReminderFire = (event: { content: string; conversationId: string }) => {
+      // Browser Notification API — works even when window is minimized / tab not focused
+      if ('Notification' in window && Notification.permission === 'granted') {
+        const n = new Notification('⏰ Nhắc hẹn', {
+          body: event.content,
+          icon: '/favicon.ico',
+          tag: `reminder-${event.conversationId}`,
+        });
+        setTimeout(() => n.close(), 10000);
+      }
+      // In-app toast (always shown)
+      toast.info(`⏰ Nhắc hẹn: ${event.content}`, {
+        autoClose: 10000,
+        position: 'top-right',
+        toastId: `reminder-fire-${event.conversationId}`,
+      });
+    };
+    const onReminderUpdated = (event: { reminderId: string; conversationId: string; reminder: any }) => {
+      window.dispatchEvent(new CustomEvent('reminder:updated', { detail: { reminder: event.reminder } }));
+    };
+    const onReminderDeleted = (event: { reminderId: string; conversationId: string }) => {
+      window.dispatchEvent(new CustomEvent('reminder:deleted', { detail: { reminderId: event.reminderId } }));
+    };
+    appSocket.on('reminder:fire', onReminderFire);
+    appSocket.on('reminder:updated', onReminderUpdated);
+    appSocket.on('reminder:deleted', onReminderDeleted);
+
     return () => {
       appSocket.off('message:new', onMessageNew);
       appSocket.off('message:revoked', onMessageRevoked);
@@ -402,6 +434,9 @@ export function ChatSocketInitializer() {
       appSocket.off('call:cancelled', onCallCancelled);
       appSocket.off('call:participant_left', onCallParticipantLeft);
       appSocket.off('call:busy', onCallBusy);
+      appSocket.off('reminder:fire', onReminderFire);
+      appSocket.off('reminder:updated', onReminderUpdated);
+      appSocket.off('reminder:deleted', onReminderDeleted);
     };
   }, [user, dispatch, activeConversationId]);
 

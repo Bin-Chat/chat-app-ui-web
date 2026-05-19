@@ -1,5 +1,6 @@
 import authorizedAxios from '@/utils/authorizedAxios';
 import type { Conversation, Message, Participant } from '@/types/chat.type';
+import type { Reminder } from '@/types/reminder.type';
 
 interface CreateConversationPayload {
   type: 'direct' | 'group';
@@ -183,4 +184,44 @@ export const chatServices = {
             nextCursor: string | null;
           }
       ),
+
+  // ── Reminders ─────────────────────────────────────────────────────────────
+
+  createReminder: (
+    conversationId: string,
+    payload: { content: string; remindAt: string; repeat?: 'none' | 'daily' | 'weekly' | 'monthly' }
+  ) =>
+    authorizedAxios
+      .post<Reminder>(`/api/chat/conversations/${conversationId}/reminders`, payload)
+      .then((r) => r.data),
+
+  getReminders: (conversationId: string) =>
+    authorizedAxios
+      .get<Reminder[]>(`/api/chat/conversations/${conversationId}/reminders`)
+      .then((r) => r.data),
+
+  updateReminder: (
+    reminderId: string,
+    payload: {
+      content?: string;
+      remindAt?: string;
+      repeat?: 'none' | 'daily' | 'weekly' | 'monthly';
+    }
+  ) =>
+    authorizedAxios
+      .patch<Reminder>(`/api/chat/reminders/${reminderId}`, payload)
+      .then((r) => r.data),
+
+  deleteReminder: (reminderId: string) =>
+    authorizedAxios.delete(`/api/chat/reminders/${reminderId}`).then((r) => r.data),
+
+  completeReminder: (reminderId: string) =>
+    authorizedAxios
+      .post<Reminder>(`/api/chat/reminders/${reminderId}/complete`)
+      .then((r) => r.data),
+
+  rsvpReminder: (reminderId: string, status: 'yes' | 'no', name: string) =>
+    authorizedAxios
+      .post<Reminder>(`/api/chat/reminders/${reminderId}/rsvp`, { status, name })
+      .then((r) => r.data),
 };

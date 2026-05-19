@@ -17,6 +17,7 @@ import {
 import { appSocket } from '@/services/appSocket';
 import UserAvatar from '@/components/UserAvatar';
 import MessageBubble from './MessageBubble';
+import ReminderMessageCard from './ReminderMessageCard';
 import MessageInput from './MessageInput';
 import ForwardModal from './ForwardModal';
 import GroupInfoPanel from './GroupInfoPanel';
@@ -559,8 +560,34 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
             </div>
           )}
           {visibleMessages.map((msg, idx) => {
-            // System messages (group events)
-            if (msg.senderId === 'system') {
+            // ── System messages ─────────────────────────────────────────────
+            if (msg.senderId === 'system' || msg.type === 'system') {
+              // Reminder card — full interactive card instead of plain text pill
+              if (msg.metadata?.type === 'reminder_created') {
+                return (
+                  <ReminderMessageCard
+                    key={msg._id}
+                    metadata={msg.metadata as any}
+                    currentUserId={currentUser?.id ?? ''}
+                    currentUserName={currentUser?.fullName ?? ''}
+                    conversationId={conversationId}
+                    messageId={msg._id}
+                    conversationType={conversation?.type}
+                  />
+                );
+              }
+              // Fallback for old reminder_created messages without metadata
+              if (msg.content === 'reminder_created') {
+                return (
+                  <div key={msg._id} className="flex justify-center py-1.5">
+                    <span className="flex items-center gap-1.5 text-[11px] text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
+                      <span>📅</span>
+                      <span>Đã tạo nhắc hẹn mới</span>
+                    </span>
+                  </div>
+                );
+              }
+              // Generic system pill (call events, group events, etc.)
               return (
                 <div key={msg._id} className="flex justify-center py-1">
                   <span className="text-[11px] text-gray-400 bg-gray-100 px-3 py-1 rounded-full">
