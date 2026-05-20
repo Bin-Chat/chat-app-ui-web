@@ -18,6 +18,11 @@ import { appSocket } from '@/services/appSocket';
 import UserAvatar from '@/components/UserAvatar';
 import MessageBubble from './MessageBubble';
 import ReminderMessageCard from './ReminderMessageCard';
+import NoteMessageCard from './NoteMessageCard';
+import NoteListModal from './NoteListModal';
+import { StickyNote } from 'lucide-react';
+import { chatServices } from '@/services/chatServices';
+import type { Note } from '@/types/note.type';
 import MessageInput from './MessageInput';
 import ForwardModal from './ForwardModal';
 import GroupInfoPanel from './GroupInfoPanel';
@@ -73,8 +78,19 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
   const otherUser = useMemo(() => {
     if (!conversation || conversation.type !== 'direct') return null;
     const otherP = conversation.participants.find((p) => p.userId !== currentUser?.id);
-    return friends.find((f) => f.user.id === otherP?.userId)?.user ?? null;
-  }, [conversation, currentUser, friends]);
+    if (!otherP) return null;
+    const fromFriends = friends.find((f) => f.user.id === otherP.userId)?.user;
+    if (fromFriends) return fromFriends;
+    // Fallback: use pre-fetched member profile (works for non-friend participants too)
+    const profile = groupMemberProfiles[otherP.userId];
+    if (profile)
+      return {
+        id: profile.id,
+        fullName: profile.fullName,
+        avatar: profile.avatar ?? undefined,
+      } as const;
+    return null;
+  }, [conversation, currentUser, friends, groupMemberProfiles]);
 
   const displayName =
     conversation?.type === 'direct'
@@ -318,7 +334,70 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
     return `${typingIds.length} người đang gõ...`;
   }, [typingUsers, conversationId]);
 
-  const allPinned = pinnedMessages[conversationId] ?? [];
+  const allPinnedMessages = pinnedMessages[conversationId] ?? [];
+
+  // ── Pinned notes (in banner alongside pinned messages) ──────────────────
+  const [pinnedNotes, setPinnedNotes] = useState<Note[]>([]);
+  const [showNoteListModal, setShowNoteListModal] = useState(false);
+  useEffect(() => {
+    if (!conversationId) return;
+    let cancelled = false;
+    chatServices
+      .getNotes(conversationId)
+      .then((list: Note[]) => {
+        if (!cancelled) setPinnedNotes(list.filter((n) => n.isPinned));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId]);
+
+  // Sync via custom note events (dispatched by ChatSocketInitializer & local actions)
+  useEffect(() => {
+    const upsert = (e: Event) => {
+      const detail = (e as CustomEvent).detail ?? {};
+      if (detail.conversationId && detail.conversationId !== conversationId) return;
+      const note: Note | undefined = detail.note;
+      if (!note) return;
+      setPinnedNotes((prev) => {
+        const filtered = prev.filter((n) => n._id !== note._id);
+        return note.isPinned ? [note, ...filtered] : filtered;
+      });
+    };
+    const onDeleted = (e: Event) => {
+      const { noteId } = (e as CustomEvent).detail ?? {};
+      if (!noteId) return;
+      setPinnedNotes((prev) => prev.filter((n) => n._id !== noteId));
+    };
+    window.addEventListener('note:created', upsert);
+    window.addEventListener('note:updated', upsert);
+    window.addEventListener('note:deleted', onDeleted);
+    return () => {
+      window.removeEventListener('note:created', upsert);
+      window.removeEventListener('note:updated', upsert);
+      window.removeEventListener('note:deleted', onDeleted);
+    };
+  }, [conversationId]);
+
+  type PinnedBannerItem =
+    | { kind: 'message'; id: string; content: string; messageId: string }
+    | { kind: 'note'; id: string; content: string; noteId: string };
+  const allPinned: PinnedBannerItem[] = useMemo(() => {
+    const noteItems: PinnedBannerItem[] = pinnedNotes.map((n) => ({
+      kind: 'note' as const,
+      id: `note:${n._id}`,
+      content: n.content,
+      noteId: n._id,
+    }));
+    const msgItems: PinnedBannerItem[] = allPinnedMessages.map((m) => ({
+      kind: 'message' as const,
+      id: `msg:${m._id}`,
+      content: m.content || '[Tệp đính kèm]',
+      messageId: m._id,
+    }));
+    return [...noteItems, ...msgItems];
+  }, [pinnedNotes, allPinnedMessages]);
   const [pinnedBannerIdx, setPinnedBannerIdx] = useState(0);
 
   // Reset banner index when conversation changes or list length changes
@@ -511,31 +590,36 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
             </div>
           )}
 
-        {/* Pinned message banner */}
+        {/* Pinned message/note banner */}
         {currentPinned && (
           <div className="flex items-center gap-2 px-4 py-2 bg-amber-50 border-b border-amber-100 flex-shrink-0">
-            <Pin className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+            {currentPinned.kind === 'note' ? (
+              <StickyNote className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+            ) : (
+              <Pin className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+            )}
             <button
               className="flex-1 min-w-0 text-left"
-              onClick={() => handleScrollToMessage(currentPinned._id)}
+              onClick={() => {
+                if (currentPinned.kind === 'note') setShowNoteListModal(true);
+                else handleScrollToMessage(currentPinned.messageId);
+              }}
             >
               <p className="text-[11px] font-semibold text-amber-600">
-                Tin nhắn được ghim
+                {currentPinned.kind === 'note' ? 'Ghi chú được ghim' : 'Tin nhắn được ghim'}
                 {allPinned.length > 1 && (
                   <span className="ml-1.5 font-normal text-amber-500">
                     {pinnedBannerIdx + 1}/{allPinned.length}
                   </span>
                 )}
               </p>
-              <p className="text-[12px] text-gray-600 truncate">
-                {currentPinned.content || '[Tệp đính kèm]'}
-              </p>
+              <p className="text-[12px] text-gray-600 truncate">{currentPinned.content}</p>
             </button>
             {allPinned.length > 1 && (
               <button
                 onClick={() => setPinnedBannerIdx((i) => (i + 1) % allPinned.length)}
                 className="w-6 h-6 rounded-full flex items-center justify-center hover:bg-amber-100 text-amber-500"
-                title="Xem tin ghim tiếp theo"
+                title="Xem mục ghim tiếp theo"
               >
                 <ChevronDown className="w-3.5 h-3.5" />
               </button>
@@ -585,6 +669,17 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
                       <span>Đã tạo nhắc hẹn mới</span>
                     </span>
                   </div>
+                );
+              }
+              // Note action card — same rich card as in group chat
+              if (msg.metadata?.type === 'note_action') {
+                return (
+                  <NoteMessageCard
+                    key={msg._id}
+                    metadata={msg.metadata as any}
+                    currentUserId={currentUser?.id ?? ''}
+                    conversationId={conversationId}
+                  />
                 );
               }
               // Generic system pill (call events, group events, etc.)
@@ -742,10 +837,11 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
       )}
       {showGroupInfo && conversation?.type === 'direct' && (
         <DirectInfoPanel
-          conversation={conversation}
+          conversation={{ ...conversation, otherUser: otherUser ?? undefined }}
           onClose={() => setShowGroupInfo(false)}
           onAudioCall={() => initiateCall('audio')}
           onVideoCall={() => initiateCall('video')}
+          currentUserId={currentUser?.id}
         />
       )}
 
@@ -769,6 +865,16 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
         conversationId={conversationId}
         messages={messages}
       />
+
+      {/* Note list modal (opened from pinned-note banner click) */}
+      {showNoteListModal && (
+        <NoteListModal
+          conversationId={conversationId}
+          currentUserId={currentUser?.id ?? ''}
+          isAdmin={isAdminOrOwner}
+          onClose={() => setShowNoteListModal(false)}
+        />
+      )}
     </div>
   );
 }

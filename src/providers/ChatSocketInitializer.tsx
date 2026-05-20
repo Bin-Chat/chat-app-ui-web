@@ -22,6 +22,7 @@ import {
   socketMessagePinned,
   socketMessageUnpinned,
   socketTypingUpdate,
+  fetchPinnedMessages,
   setUserOnline,
   setUserOffline,
   setPresenceBatch,
@@ -203,6 +204,8 @@ export function ChatSocketInitializer() {
           pinnedBy: payload.pinnedBy,
         })
       );
+      // Always re-fetch to ensure banner is accurate even if message not in memory
+      dispatch(fetchPinnedMessages(payload.conversationId));
     };
     const onMessageUnpinned = (payload: any) => {
       dispatch(
@@ -211,6 +214,7 @@ export function ChatSocketInitializer() {
           messageId: payload.messageId,
         })
       );
+      dispatch(fetchPinnedMessages(payload.conversationId));
     };
     const onTypingUpdate = (payload: { conversationId: string; typingUserIds: string[] }) => {
       dispatch(socketTypingUpdate(payload));
@@ -396,15 +400,47 @@ export function ChatSocketInitializer() {
         toastId: `reminder-fire-${event.conversationId}`,
       });
     };
-    const onReminderUpdated = (event: { reminderId: string; conversationId: string; reminder: any }) => {
-      window.dispatchEvent(new CustomEvent('reminder:updated', { detail: { reminder: event.reminder } }));
+    const onReminderUpdated = (event: {
+      reminderId: string;
+      conversationId: string;
+      reminder: any;
+    }) => {
+      window.dispatchEvent(
+        new CustomEvent('reminder:updated', { detail: { reminder: event.reminder } })
+      );
     };
     const onReminderDeleted = (event: { reminderId: string; conversationId: string }) => {
-      window.dispatchEvent(new CustomEvent('reminder:deleted', { detail: { reminderId: event.reminderId } }));
+      window.dispatchEvent(
+        new CustomEvent('reminder:deleted', { detail: { reminderId: event.reminderId } })
+      );
+    };
+    const onNoteCreated = (event: { noteId: string; conversationId: string; note: any }) => {
+      window.dispatchEvent(
+        new CustomEvent('note:created', {
+          detail: { conversationId: event.conversationId, note: event.note },
+        })
+      );
+    };
+    const onNoteUpdated = (event: { noteId: string; conversationId: string; note: any }) => {
+      window.dispatchEvent(
+        new CustomEvent('note:updated', {
+          detail: { conversationId: event.conversationId, note: event.note },
+        })
+      );
+    };
+    const onNoteDeleted = (event: { noteId: string; conversationId: string }) => {
+      window.dispatchEvent(
+        new CustomEvent('note:deleted', {
+          detail: { conversationId: event.conversationId, noteId: event.noteId },
+        })
+      );
     };
     appSocket.on('reminder:fire', onReminderFire);
     appSocket.on('reminder:updated', onReminderUpdated);
     appSocket.on('reminder:deleted', onReminderDeleted);
+    appSocket.on('note:created', onNoteCreated);
+    appSocket.on('note:updated', onNoteUpdated);
+    appSocket.on('note:deleted', onNoteDeleted);
 
     return () => {
       appSocket.off('message:new', onMessageNew);
@@ -437,6 +473,9 @@ export function ChatSocketInitializer() {
       appSocket.off('reminder:fire', onReminderFire);
       appSocket.off('reminder:updated', onReminderUpdated);
       appSocket.off('reminder:deleted', onReminderDeleted);
+      appSocket.off('note:created', onNoteCreated);
+      appSocket.off('note:updated', onNoteUpdated);
+      appSocket.off('note:deleted', onNoteDeleted);
     };
   }, [user, dispatch, activeConversationId]);
 

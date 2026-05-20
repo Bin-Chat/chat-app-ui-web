@@ -1,6 +1,7 @@
 import authorizedAxios from '@/utils/authorizedAxios';
 import type { Conversation, Message, Participant } from '@/types/chat.type';
 import type { Reminder } from '@/types/reminder.type';
+import type { Note } from '@/types/note.type';
 
 interface CreateConversationPayload {
   type: 'direct' | 'group';
@@ -224,4 +225,22 @@ export const chatServices = {
     authorizedAxios
       .post<Reminder>(`/api/chat/reminders/${reminderId}/rsvp`, { status, name })
       .then((r) => r.data),
+
+  // ── Notes ────────────────────────────────────────────────────────────────
+
+  createNote: (conversationId: string, payload: { content: string; isPinned?: boolean }) =>
+    authorizedAxios
+      .post<Note>(`/api/chat/conversations/${conversationId}/notes`, payload)
+      .then((r) => r.data),
+
+  getNotes: (conversationId: string) =>
+    authorizedAxios
+      .get<Note[]>(`/api/chat/conversations/${conversationId}/notes`)
+      .then((r) => r.data),
+
+  updateNote: (noteId: string, payload: { content?: string; isPinned?: boolean }) =>
+    authorizedAxios.patch<Note>(`/api/chat/notes/${noteId}`, payload).then((r) => r.data),
+
+  deleteNote: (noteId: string) =>
+    authorizedAxios.delete(`/api/chat/notes/${noteId}`).then((r) => r.data),
 };

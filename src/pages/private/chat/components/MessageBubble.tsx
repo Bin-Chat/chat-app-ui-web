@@ -11,12 +11,14 @@ import {
   Reply,
   Pencil,
   Pin,
+  PinOff,
   Phone,
   Video,
   PhoneMissed,
   VideoOff,
   Languages,
   ShieldAlert,
+  StickyNote,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
@@ -28,6 +30,7 @@ import type { Message } from '@/types/chat.type';
 import ImageGrid from './ImageGrid';
 import TranslateMessageModal from './TranslateMessageModal';
 import ReminderMessageCard from './ReminderMessageCard';
+import NoteMessageCard from './NoteMessageCard';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
@@ -269,6 +272,16 @@ export default function MessageBubble({
       );
     }
 
+    if (message.metadata?.type === 'note_action') {
+      return (
+        <NoteMessageCard
+          metadata={message.metadata as any}
+          currentUserId={currentUser?.id ?? ''}
+          conversationId={conversationId}
+        />
+      );
+    }
+
     // ── Call system messages ─────────────────────────────────────────
     // New format: '[VOICE] ...' / '[VIDEO] ...' — legacy: '📞 ...' / '📹 ...'
     const isVoiceCall = content.startsWith('[VOICE]') || content.startsWith('📞');
@@ -317,6 +330,57 @@ export default function MessageBubble({
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
                 {isMissed ? 'Không thành công' : (duration ?? 'Đã kết thúc')}
               </p>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // ── Legacy note system messages (no metadata) ────────────────────
+    if (content.toLowerCase().includes('ghi chú')) {
+      const isUnpinAction = content.includes('bỏ ghim');
+      const isPinAction = !isUnpinAction && content.includes('ghim');
+      const isDeleteAction = content.includes('xóa');
+
+      // Delete / unpin → simple pill
+      if (isDeleteAction || isUnpinAction) {
+        return (
+          <div className="flex justify-center my-2 px-4">
+            <div className="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-full">
+              {isUnpinAction ? (
+                <PinOff className="w-3 h-3 text-gray-400" />
+              ) : (
+                <StickyNote className="w-3 h-3 text-gray-400" />
+              )}
+              <span className="text-[11px] text-gray-500 select-none">{content}</span>
+            </div>
+          </div>
+        );
+      }
+
+      // Create / edit / pin → card
+      return (
+        <div className="flex justify-center my-3 px-4">
+          <div className="w-full max-w-[310px] bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-[0_2px_10px_rgba(0,0,0,0.07)]">
+            {/* Top accent stripe */}
+            <div className="h-[3px] bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400" />
+            {/* Header */}
+            <div className="flex items-center gap-3 px-4 py-3">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-100 to-yellow-50 border border-amber-100 flex items-center justify-center flex-shrink-0">
+                <StickyNote className="w-4 h-4 text-amber-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] text-amber-500 font-bold uppercase tracking-wider leading-none mb-1">
+                  Ghi chú
+                </p>
+                <p className="text-[12px] text-gray-600 leading-tight">{content}</p>
+              </div>
+              {isPinAction && (
+                <div className="flex items-center gap-1 px-2 py-1 bg-amber-50 rounded-full border border-amber-100 flex-shrink-0">
+                  <Pin className="w-3 h-3 text-amber-500" />
+                  <span className="text-[10px] text-amber-600 font-medium">Đã ghim</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

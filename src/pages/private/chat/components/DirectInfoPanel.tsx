@@ -1,8 +1,9 @@
-import { X, Phone, Video, Clock } from 'lucide-react';
+import { X, Phone, Video, Clock, StickyNote } from 'lucide-react';
 import { useState } from 'react';
 import UserAvatar from '@/components/UserAvatar';
 import MediaInfoPanel from './MediaInfoPanel';
 import ReminderListModal from './ReminderListModal';
+import NoteListModal from './NoteListModal';
 import type { Conversation } from '@/types/chat.type';
 
 interface DirectInfoPanelProps {
@@ -22,6 +23,7 @@ export default function DirectInfoPanel({
 }: DirectInfoPanelProps) {
   const other = conversation.otherUser;
   const [showReminderList, setShowReminderList] = useState(false);
+  const [showNoteList, setShowNoteList] = useState(false);
 
   return (
     <div className="w-[320px] h-full bg-white border-l border-gray-100 flex flex-col flex-shrink-0">
@@ -93,6 +95,15 @@ export default function DirectInfoPanel({
             </div>
             <span className="text-[13px] text-gray-700">Danh sách nhắc hẹn</span>
           </button>
+          <button
+            onClick={() => setShowNoteList(true)}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left"
+          >
+            <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0">
+              <StickyNote className="w-4 h-4 text-amber-500" />
+            </div>
+            <span className="text-[13px] text-gray-700">Ghi chú</span>
+          </button>
         </div>
       </div>
 
@@ -101,6 +112,14 @@ export default function DirectInfoPanel({
           conversationId={conversation._id}
           currentUserId={currentUserId ?? ''}
           onClose={() => setShowReminderList(false)}
+        />
+      )}
+
+      {showNoteList && (
+        <NoteListModal
+          conversationId={conversation._id}
+          currentUserId={currentUserId ?? ''}
+          onClose={() => setShowNoteList(false)}
         />
       )}
     </div>

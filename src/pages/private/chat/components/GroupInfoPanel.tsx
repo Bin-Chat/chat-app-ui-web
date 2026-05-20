@@ -21,6 +21,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '@/hooks/useRedux';
 import MediaInfoPanel from './MediaInfoPanel';
 import ReminderListModal from './ReminderListModal';
+import NoteListModal from './NoteListModal';
 import {
   addGroupMembers,
   removeGroupMember,
@@ -61,6 +62,7 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [showTransferForLeave, setShowTransferForLeave] = useState(false);
   const [showReminderList, setShowReminderList] = useState(false);
+  const [showNoteList, setShowNoteList] = useState(false);
 
   const myParticipant = conversation.participants.find((p) => p.userId === currentUser?.id);
   const myRole = myParticipant?.role ?? 'member';
@@ -461,6 +463,25 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
                 </div>
                 <span className="text-[13px] text-gray-700">Danh sách nhắc hẹn</span>
               </button>
+              <button
+                onClick={() => setShowNoteList(true)}
+                className="mt-1 w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left"
+              >
+                <div className="w-8 h-8 rounded-full bg-amber-50 flex items-center justify-center flex-shrink-0">
+                  <svg
+                    className="w-4 h-4 text-amber-500"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    viewBox="0 0 24 24"
+                  >
+                    <path d="M16 4h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                    <rect x="8" y="2" width="8" height="4" rx="1" />
+                    <path d="M8 12h8M8 16h5" />
+                  </svg>
+                </div>
+                <span className="text-[13px] text-gray-700">Ghi chú</span>
+              </button>
             </div>
           </div>
 
@@ -572,6 +593,16 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
           conversationId={conversation._id}
           currentUserId={currentUser?.id ?? ''}
           onClose={() => setShowReminderList(false)}
+        />
+      )}
+
+      {/* Note list modal */}
+      {showNoteList && (
+        <NoteListModal
+          conversationId={conversation._id}
+          currentUserId={currentUser?.id ?? ''}
+          isAdmin={isOwner || isAdmin}
+          onClose={() => setShowNoteList(false)}
         />
       )}
     </>
