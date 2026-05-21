@@ -25,6 +25,7 @@ import ForgotPassword from '@/pages/auth/ForgotPassword/ForgotPassword';
 import VerifyEmail from '@/pages/auth/VerifyEmail/VerifyEmail';
 import AdminDashboard from '@/pages/admin/AdminDashboard';
 import NotFound from '@/pages/public/NotFound';
+import JoinGroup from '@/pages/public/JoinGroup';
 import ContactsPage from '@/pages/private/contacts';
 import SettingsPage from '@/pages/private/settings';
 
@@ -53,6 +54,10 @@ const router = createBrowserRouter([
           {
             path: 'settings',
             element: <SettingsPage />,
+          },
+          {
+            path: 'join/:token',
+            element: <JoinGroup />,
           },
         ],
       },

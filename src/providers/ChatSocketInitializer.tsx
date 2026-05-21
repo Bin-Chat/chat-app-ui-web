@@ -18,6 +18,9 @@ import {
   socketGroupOwnerTransferred,
   socketMemberBanned,
   socketMemberUnbanned,
+  socketGroupJoinRequested,
+  socketGroupJoinApproved,
+  socketGroupJoinDeclined,
   socketPollUpdated,
   socketPollDeleted,
   socketMessageEdited,
@@ -251,6 +254,43 @@ export function ChatSocketInitializer() {
       );
     };
 
+    // ── Join Approval events ─────────────────────────────────────────
+    const onGroupJoinRequested = (payload: any) => {
+      dispatch(
+        socketGroupJoinRequested({
+          conversationId: payload.conversationId,
+          requesterId: payload.requesterId,
+          requestedAt: payload.requestedAt ?? new Date().toISOString(),
+        })
+      );
+      toast.info('Có người muốn tham gia nhóm.', { autoClose: 5000 });
+    };
+    const onGroupJoinApproved = (payload: any) => {
+      dispatch(
+        socketGroupJoinApproved({
+          conversationId: payload.conversationId,
+          requesterId: payload.requesterId,
+          allParticipantIds: payload.allParticipantIds ?? [],
+        })
+      );
+      // If current user was the one approved, fetch the conversation so it appears in sidebar
+      if (payload.requesterId === user.id) {
+        dispatch(fetchConversations());
+        toast.success('Yêu cầu tham gia nhóm của bạn đã được chấp nhận.', { autoClose: 5000 });
+      }
+    };
+    const onGroupJoinDeclined = (payload: any) => {
+      dispatch(
+        socketGroupJoinDeclined({
+          conversationId: payload.conversationId,
+          requesterId: payload.requesterId,
+        })
+      );
+      if (payload.requesterId === user.id) {
+        toast.warn('Yêu cầu tham gia nhóm của bạn đã bị từ chối.', { autoClose: 5000 });
+      }
+    };
+
     // ── Presence events ─────────────────────────────────────────────
     const onUserOnline = (payload: { userId: string }) => {
       dispatch(setUserOnline(payload));
@@ -375,6 +415,9 @@ export function ChatSocketInitializer() {
     appSocket.on('conversation:settings', onConversationSettings);
     appSocket.on('member:banned', onMemberBanned);
     appSocket.on('member:unbanned', onMemberUnbanned);
+    appSocket.on('group:join_requested', onGroupJoinRequested);
+    appSocket.on('group:join_approved', onGroupJoinApproved);
+    appSocket.on('group:join_declined', onGroupJoinDeclined);
     appSocket.on('user:online', onUserOnline);
     appSocket.on('user:offline', onUserOffline);
     appSocket.on('presence:result', onPresenceResult);
@@ -496,6 +539,9 @@ export function ChatSocketInitializer() {
       appSocket.off('conversation:settings', onConversationSettings);
       appSocket.off('member:banned', onMemberBanned);
       appSocket.off('member:unbanned', onMemberUnbanned);
+      appSocket.off('group:join_requested', onGroupJoinRequested);
+      appSocket.off('group:join_approved', onGroupJoinApproved);
+      appSocket.off('group:join_declined', onGroupJoinDeclined);
       appSocket.off('user:online', onUserOnline);
       appSocket.off('user:offline', onUserOffline);
       appSocket.off('presence:result', onPresenceResult);

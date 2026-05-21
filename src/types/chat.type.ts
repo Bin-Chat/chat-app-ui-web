@@ -77,6 +77,11 @@ export interface PinnedMessage {
   pinnedAt: string;
 }
 
+export interface PendingMember {
+  userId: string;
+  requestedAt: string;
+}
+
 export interface LastMessage {
   senderId: string;
   content: string;
@@ -95,6 +100,9 @@ export interface Conversation {
   description?: string;
   settings?: ConversationSettings;
   pinnedMessages?: PinnedMessage[];
+  pendingMembers?: PendingMember[];
+  inviteToken?: string | null;
+  inviteEnabled?: boolean;
   createdAt: string;
   updatedAt: string;
   // Populated on frontend

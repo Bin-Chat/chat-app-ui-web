@@ -1,7 +1,7 @@
 import { createSlice, createAsyncThunk, type PayloadAction } from '@reduxjs/toolkit';
 import { chatServices } from '@/services/chatServices';
 import { userServices, type UserProfile } from '@/services/userServices';
-import type { Conversation, Message, Participant } from '@/types/chat.type';
+import type { Conversation, Message, Participant, PendingMember } from '@/types/chat.type';
 
 export interface PresenceInfo {
   online: boolean;
@@ -27,6 +27,8 @@ export interface ChatState {
   typingUsers: Record<string, string[]>;
   /** Pinned messages per conversation */
   pinnedMessages: Record<string, Message[]>;
+  /** Pending join requests per conversation (keyed by conversationId) */
+  pendingJoinRequests: Record<string, PendingMember[]>;
 }
 
 const initialState: ChatState = {
@@ -43,6 +45,7 @@ const initialState: ChatState = {
   userPresence: {},
   typingUsers: {},
   pinnedMessages: {},
+  pendingJoinRequests: {},
 };
 
 // ── Thunks ────────────────────────────────────────────────────────────────────
@@ -180,7 +183,7 @@ export const fetchGroupMembers = createAsyncThunk<
 });
 
 export const addGroupMembers = createAsyncThunk<
-  Conversation,
+  { success: boolean; addedCount?: number; pendingCount?: number; status?: string },
   { conversationId: string; memberIds: string[] },
   { rejectValue: string }
 >('chat/addGroupMembers', async ({ conversationId, memberIds }, thunkAPI) => {
@@ -665,7 +668,11 @@ const chatSlice = createSlice({
         const oldOwner = conv.participants.find((p) => p.userId === action.payload.oldOwnerId);
         if (oldOwner) oldOwner.role = 'admin';
         const newOwner = conv.participants.find((p) => p.userId === action.payload.newOwnerId);
-        if (newOwner) newOwner.role = 'owner';
+        if (newOwner) {
+          newOwner.role = 'owner';
+          (newOwner as any).isBanned = false;
+          (newOwner as any).bannedUntil = null;
+        }
       }
     },
     socketMemberBanned: (
@@ -697,6 +704,69 @@ const chatSlice = createSlice({
           (p as any).bannedUntil = null;
         }
       }
+    },
+
+    // ── Join Approval reducers ───────────────────────────────────────
+    socketGroupJoinRequested: (
+      state,
+      action: PayloadAction<{
+        conversationId: string;
+        requesterId: string;
+        requestedAt: string;
+      }>
+    ) => {
+      const { conversationId, requesterId, requestedAt } = action.payload;
+      if (!state.pendingJoinRequests[conversationId]) {
+        state.pendingJoinRequests[conversationId] = [];
+      }
+      const already = state.pendingJoinRequests[conversationId].some(
+        (r) => r.userId === requesterId
+      );
+      if (!already) {
+        state.pendingJoinRequests[conversationId].push({ userId: requesterId, requestedAt });
+      }
+    },
+    socketGroupJoinApproved: (
+      state,
+      action: PayloadAction<{
+        conversationId: string;
+        requesterId: string;
+        allParticipantIds: string[];
+      }>
+    ) => {
+      const { conversationId, requesterId } = action.payload;
+      // Remove from pending list
+      if (state.pendingJoinRequests[conversationId]) {
+        state.pendingJoinRequests[conversationId] = state.pendingJoinRequests[
+          conversationId
+        ].filter((r) => r.userId !== requesterId);
+      }
+      // Add requester to conversation participants
+      const conv = state.conversations.find((c) => c._id === conversationId);
+      if (conv && !conv.participants.some((p) => p.userId === requesterId)) {
+        conv.participants.push({
+          userId: requesterId,
+          role: 'member',
+          joinedAt: new Date().toISOString(),
+        });
+      }
+    },
+    socketGroupJoinDeclined: (
+      state,
+      action: PayloadAction<{ conversationId: string; requesterId: string }>
+    ) => {
+      const { conversationId, requesterId } = action.payload;
+      if (state.pendingJoinRequests[conversationId]) {
+        state.pendingJoinRequests[conversationId] = state.pendingJoinRequests[
+          conversationId
+        ].filter((r) => r.userId !== requesterId);
+      }
+    },
+    setPendingJoinRequests: (
+      state,
+      action: PayloadAction<{ conversationId: string; requests: PendingMember[] }>
+    ) => {
+      state.pendingJoinRequests[action.payload.conversationId] = action.payload.requests;
     },
 
     // ── Presence reducers ────────────────────────────────────────────
@@ -835,9 +905,8 @@ const chatSlice = createSlice({
 
     // ── Group thunk reducers ──────────────────────────────────────────
     builder.addCase(addGroupMembers.fulfilled, (state, action) => {
-      const updated = action.payload;
-      const idx = state.conversations.findIndex((c) => c._id === updated._id);
-      if (idx >= 0) state.conversations[idx] = { ...state.conversations[idx], ...updated };
+      // pending case: no conversation update needed (socket will handle approved)
+      // direct add case: socket group:members_added handles update
     });
 
     builder.addCase(removeGroupMember.fulfilled, (state, action) => {
@@ -927,6 +996,10 @@ export const {
   socketGroupOwnerTransferred,
   socketMemberBanned,
   socketMemberUnbanned,
+  socketGroupJoinRequested,
+  socketGroupJoinApproved,
+  socketGroupJoinDeclined,
+  setPendingJoinRequests,
   socketPollUpdated,
   socketPollDeleted,
   setUserOnline,

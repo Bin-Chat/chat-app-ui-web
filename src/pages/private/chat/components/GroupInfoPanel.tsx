@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   X,
   Search,
@@ -13,6 +13,12 @@ import {
   Camera,
   Settings,
   Ban,
+  Link,
+  Copy,
+  Clock,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { toast } from 'react-toastify';
@@ -34,7 +40,10 @@ import {
   updateGroupSettings,
   banGroupMember,
   unbanGroupMember,
+  setPendingJoinRequests,
 } from '@/store/slices';
+import { chatServices } from '@/services/chatServices';
+import type { PendingMember } from '@/types/chat.type';
 import UserAvatar from '@/components/UserAvatar';
 import type { Conversation } from '@/types/chat.type';
 
@@ -56,6 +65,7 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
   const currentUser = useAppSelector((s) => s.auth.user);
   const friends = useAppSelector((s) => s.friend.friends);
   const groupMemberProfiles = useAppSelector((s) => s.chat.groupMemberProfiles);
+  const pendingRequests = useAppSelector((s) => s.chat.pendingJoinRequests[conversation._id] ?? []);
 
   const [showAddMember, setShowAddMember] = useState(false);
   const [showEditInfo, setShowEditInfo] = useState(false);
@@ -65,6 +75,16 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
   const [showReminderList, setShowReminderList] = useState(false);
   const [showNoteList, setShowNoteList] = useState(false);
   const [showCreatePoll, setShowCreatePoll] = useState(false);
+  const [showInviteSection, setShowInviteSection] = useState(false);
+  const [showPendingSection, setShowPendingSection] = useState(false);
+  const [inviteToken, setInviteToken] = useState<string | null>(conversation.inviteToken ?? null);
+  const [inviteEnabled, setInviteEnabled] = useState<boolean>(conversation.inviteEnabled ?? false);
+
+  // Sync local invite state if conversation prop changes
+  useEffect(() => {
+    setInviteToken(conversation.inviteToken ?? null);
+    setInviteEnabled(conversation.inviteEnabled ?? false);
+  }, [conversation.inviteToken, conversation.inviteEnabled]);
 
   const myParticipant = conversation.participants.find((p) => p.userId === currentUser?.id);
   const myRole = myParticipant?.role ?? 'member';
@@ -211,6 +231,72 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
     }
   };
 
+  const handleGenerateInviteLink = async (regenerate = false) => {
+    try {
+      const res = await chatServices.generateInviteLink(conversation._id, regenerate);
+      setInviteToken(res.inviteToken);
+      setInviteEnabled(true);
+      toast.success('Đã tạo link mời');
+    } catch {
+      toast.error('Không thể tạo link mời');
+    }
+  };
+
+  const handleRevokeInviteLink = async () => {
+    try {
+      await chatServices.revokeInviteLink(conversation._id);
+      setInviteEnabled(false);
+      toast.success('Đã tắt link mời');
+    } catch {
+      toast.error('Không thể tắt link mời');
+    }
+  };
+
+  const handleCopyInviteLink = () => {
+    if (!inviteToken) return;
+    const link = `${window.location.origin}/join/${inviteToken}`;
+    navigator.clipboard.writeText(link).then(() => toast.success('Đã sao chép link'));
+  };
+
+  const handleFetchPending = async () => {
+    try {
+      const list = await chatServices.getPendingJoinRequests(conversation._id);
+      dispatch(setPendingJoinRequests({ conversationId: conversation._id, requests: list }));
+    } catch {
+      toast.error('Không thể tải danh sách chờ duyệt');
+    }
+  };
+
+  const handleApprove = async (requesterId: string) => {
+    try {
+      await chatServices.approveJoinRequest(conversation._id, requesterId);
+      dispatch(
+        setPendingJoinRequests({
+          conversationId: conversation._id,
+          requests: pendingRequests.filter((m) => m.userId !== requesterId),
+        })
+      );
+      toast.success('Đã chấp nhận yêu cầu tham gia');
+    } catch {
+      toast.error('Không thể chấp nhận');
+    }
+  };
+
+  const handleDecline = async (requesterId: string) => {
+    try {
+      await chatServices.declineJoinRequest(conversation._id, requesterId);
+      dispatch(
+        setPendingJoinRequests({
+          conversationId: conversation._id,
+          requests: pendingRequests.filter((m) => m.userId !== requesterId),
+        })
+      );
+      toast.info('Đã từ chối yêu cầu tham gia');
+    } catch {
+      toast.error('Không thể từ chối');
+    }
+  };
+
   return (
     <>
       <div className="w-[320px] h-full bg-white border-l border-gray-100 flex flex-col flex-shrink-0">
@@ -272,6 +358,7 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
                       ['onlyAdminCanSend', 'Chỉ Quản trị viên gửi tin nhắn'],
                       ['allowMemberInvite', 'Thành viên được mời người khác'],
                       ['onlyAdminCanPin', 'Chỉ quản trị viên được ghim tin nhắn'],
+                      ['requireJoinApproval', 'Duyệt thành viên mới trước khi vào nhóm'],
                     ] as [string, string][]
                   ).map(([key, label]) => {
                     const val = !!(conversation.settings as any)?.[key];
@@ -289,6 +376,130 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
                       </div>
                     );
                   })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Invite Link — admin/owner only */}
+          {canManage && (
+            <div className="px-4 py-3 border-t border-gray-100">
+              <button
+                onClick={() => {
+                  setShowInviteSection((v) => !v);
+                }}
+                className="flex items-center justify-between w-full group"
+              >
+                <span className="flex items-center gap-1.5 text-[13px] font-semibold text-gray-700">
+                  <Link className="w-4 h-4" /> Link mời tham gia
+                </span>
+                <span className="text-gray-400 text-[11px]">{showInviteSection ? '▲' : '▼'}</span>
+              </button>
+              {showInviteSection && (
+                <div className="mt-3 space-y-2">
+                  {inviteEnabled && inviteToken ? (
+                    <>
+                      <div className="flex items-center gap-1.5 bg-gray-50 rounded-lg px-2 py-1.5">
+                        <span className="flex-1 text-[11px] text-gray-500 truncate">
+                          {`${window.location.origin}/join/${inviteToken}`}
+                        </span>
+                        <button
+                          onClick={handleCopyInviteLink}
+                          title="Sao chép"
+                          className="text-[#0068FF] hover:opacity-70"
+                        >
+                          <Copy className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <button
+                          onClick={() => handleGenerateInviteLink(true)}
+                          className="flex-1 flex items-center justify-center gap-1 text-[12px] border border-gray-200 rounded-lg py-1.5 hover:bg-gray-50"
+                        >
+                          <RefreshCw className="w-3 h-3" /> Tạo lại
+                        </button>
+                        <button
+                          onClick={handleRevokeInviteLink}
+                          className="flex-1 flex items-center justify-center gap-1 text-[12px] border border-red-200 text-red-500 rounded-lg py-1.5 hover:bg-red-50"
+                        >
+                          <XCircle className="w-3 h-3" /> Tắt link
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => handleGenerateInviteLink(false)}
+                      className="w-full flex items-center justify-center gap-1.5 text-[12px] bg-[#0068FF] text-white rounded-lg py-1.5 hover:opacity-90"
+                    >
+                      <Link className="w-3.5 h-3.5" /> Tạo link mời
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Pending Join Requests — admin/owner, only when requireJoinApproval is on */}
+          {canManage && !!(conversation.settings as any)?.requireJoinApproval && (
+            <div className="px-4 py-3 border-t border-gray-100">
+              <button
+                onClick={() => {
+                  if (!showPendingSection) handleFetchPending();
+                  setShowPendingSection((v) => !v);
+                }}
+                className="flex items-center justify-between w-full group"
+              >
+                <span className="flex items-center gap-1.5 text-[13px] font-semibold text-gray-700">
+                  <Clock className="w-4 h-4" /> Chờ duyệt
+                  {pendingRequests.length > 0 && (
+                    <span className="ml-1 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                      {pendingRequests.length}
+                    </span>
+                  )}
+                </span>
+                <span className="text-gray-400 text-[11px]">{showPendingSection ? '▲' : '▼'}</span>
+              </button>
+              {showPendingSection && (
+                <div className="mt-2 space-y-1">
+                  {pendingRequests.length === 0 ? (
+                    <p className="text-[12px] text-gray-400 text-center py-2">
+                      Không có yêu cầu nào
+                    </p>
+                  ) : (
+                    pendingRequests.map((m) => {
+                      const info = getMemberInfo(m.userId);
+                      return (
+                        <div
+                          key={m.userId}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded-xl hover:bg-gray-50"
+                        >
+                          <UserAvatar src={info.avatar} name={info.name} size={28} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[12px] font-medium text-gray-800 truncate">
+                              {info.name}
+                            </p>
+                            <p className="text-[10px] text-gray-400">
+                              {new Date(m.requestedAt).toLocaleDateString('vi-VN')}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleApprove(m.userId)}
+                            title="Chấp nhận"
+                            className="w-6 h-6 flex items-center justify-center text-green-500 hover:bg-green-50 rounded-md"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDecline(m.userId)}
+                            title="Từ chối"
+                            className="w-6 h-6 flex items-center justify-center text-red-400 hover:bg-red-50 rounded-md"
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               )}
             </div>
@@ -676,8 +887,14 @@ function AddMemberModal({
     if (selectedIds.length === 0) return;
     setAdding(true);
     try {
-      await dispatch(addGroupMembers({ conversationId, memberIds: selectedIds })).unwrap();
-      toast.success(`Đã thêm ${selectedIds.length} thành viên`);
+      const result = await dispatch(
+        addGroupMembers({ conversationId, memberIds: selectedIds })
+      ).unwrap();
+      if (result.status === 'pending') {
+        toast.info(`Đã gửi yêu cầu cho ${result.pendingCount} thành viên — chờ Admin duyệt`);
+      } else {
+        toast.success(`Đã thêm ${result.addedCount ?? selectedIds.length} thành viên`);
+      }
       onClose();
     } catch (err: any) {
       toast.error(err ?? 'Không thể thêm thành viên');
