@@ -35,7 +35,7 @@ export interface Message {
   conversationId: string;
   senderId: string;
   content: string;
-  type?: 'text' | 'image' | 'video' | 'file' | 'voice' | 'system';
+  type?: 'text' | 'image' | 'video' | 'file' | 'voice' | 'audio' | 'system' | 'poll';
   attachments: Attachment[];
   deletedFor: string[];
   revokedAt: string | null;

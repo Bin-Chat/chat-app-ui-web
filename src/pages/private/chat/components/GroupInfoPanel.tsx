@@ -22,6 +22,7 @@ import { useAppDispatch, useAppSelector } from '@/hooks/useRedux';
 import MediaInfoPanel from './MediaInfoPanel';
 import ReminderListModal from './ReminderListModal';
 import NoteListModal from './NoteListModal';
+import CreatePollModal from './CreatePollModal';
 import {
   addGroupMembers,
   removeGroupMember,
@@ -63,6 +64,7 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
   const [showTransferForLeave, setShowTransferForLeave] = useState(false);
   const [showReminderList, setShowReminderList] = useState(false);
   const [showNoteList, setShowNoteList] = useState(false);
+  const [showCreatePoll, setShowCreatePoll] = useState(false);
 
   const myParticipant = conversation.participants.find((p) => p.userId === currentUser?.id);
   const myRole = myParticipant?.role ?? 'member';
@@ -482,6 +484,25 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
                 </div>
                 <span className="text-[13px] text-gray-700">Ghi chú</span>
               </button>
+              <button
+                onClick={() => setShowCreatePoll(true)}
+                className="mt-1 w-full flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors text-left"
+              >
+                <div className="w-8 h-8 rounded-full bg-purple-50 flex items-center justify-center flex-shrink-0">
+                  <svg
+                    className="w-4 h-4 text-purple-500"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                    viewBox="0 0 24 24"
+                  >
+                    <line x1="12" y1="20" x2="12" y2="10" />
+                    <line x1="18" y1="20" x2="18" y2="4" />
+                    <line x1="6" y1="20" x2="6" y2="16" />
+                  </svg>
+                </div>
+                <span className="text-[13px] text-gray-700">Tạo bình chọn</span>
+              </button>
             </div>
           </div>
 
@@ -603,6 +624,14 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
           currentUserId={currentUser?.id ?? ''}
           isAdmin={isOwner || isAdmin}
           onClose={() => setShowNoteList(false)}
+        />
+      )}
+
+      {/* Create poll modal */}
+      {showCreatePoll && (
+        <CreatePollModal
+          conversationId={conversation._id}
+          onClose={() => setShowCreatePoll(false)}
         />
       )}
     </>

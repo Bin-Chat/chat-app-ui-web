@@ -31,6 +31,7 @@ import ImageGrid from './ImageGrid';
 import TranslateMessageModal from './TranslateMessageModal';
 import ReminderMessageCard from './ReminderMessageCard';
 import NoteMessageCard from './NoteMessageCard';
+import PollBubble from './PollBubble';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
@@ -254,6 +255,17 @@ export default function MessageBubble({
       </Dialog.Portal>
     </Dialog.Root>
   );
+
+  // Poll messages render as a dedicated card
+  if (message.type === 'poll' && !message.revokedAt) {
+    return (
+      <PollBubble
+        message={message}
+        conversationId={conversationId}
+        isMine={isMine}
+      />
+    );
+  }
 
   // System messages (call events, group events) render as centered non-interactive pills
   if (isSystemMsg) {

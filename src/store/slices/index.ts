@@ -66,6 +66,8 @@ export {
   socketGroupOwnerTransferred,
   socketMemberBanned,
   socketMemberUnbanned,
+  socketPollUpdated,
+  socketPollDeleted,
   setUserOnline,
   setUserOffline,
   setPresenceBatch,

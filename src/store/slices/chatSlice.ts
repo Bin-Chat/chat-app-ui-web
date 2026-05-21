@@ -539,6 +539,34 @@ const chatSlice = createSlice({
       }
     },
 
+    socketPollUpdated: (
+      state,
+      action: PayloadAction<{ messageId: string; conversationId: string; poll: any }>
+    ) => {
+      const { messageId, conversationId, poll } = action.payload;
+      const msgs = state.messages[conversationId];
+      if (!msgs) return;
+      const idx = msgs.findIndex((m) => m._id === messageId);
+      if (idx === -1) return;
+      const msg = msgs[idx];
+      msgs[idx] = {
+        ...msg,
+        metadata: { ...(msg.metadata ?? {}), type: 'poll', pollId: poll?._id, poll },
+      };
+    },
+
+    socketPollDeleted: (
+      state,
+      action: PayloadAction<{ messageId: string; conversationId: string }>
+    ) => {
+      const { messageId, conversationId } = action.payload;
+      const msgs = state.messages[conversationId];
+      if (!msgs) return;
+      const idx = msgs.findIndex((m) => m._id === messageId);
+      if (idx === -1) return;
+      msgs[idx] = { ...msgs[idx], revokedAt: new Date().toISOString() } as any;
+    },
+
     socketTypingUpdate: (
       state,
       action: PayloadAction<{ conversationId: string; typingUserIds: string[] }>
@@ -899,6 +927,8 @@ export const {
   socketGroupOwnerTransferred,
   socketMemberBanned,
   socketMemberUnbanned,
+  socketPollUpdated,
+  socketPollDeleted,
   setUserOnline,
   setUserOffline,
   setPresenceBatch,

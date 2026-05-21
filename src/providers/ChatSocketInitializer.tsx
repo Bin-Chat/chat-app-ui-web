@@ -18,6 +18,8 @@ import {
   socketGroupOwnerTransferred,
   socketMemberBanned,
   socketMemberUnbanned,
+  socketPollUpdated,
+  socketPollDeleted,
   socketMessageEdited,
   socketMessagePinned,
   socketMessageUnpinned,
@@ -442,6 +444,39 @@ export function ChatSocketInitializer() {
     appSocket.on('note:updated', onNoteUpdated);
     appSocket.on('note:deleted', onNoteDeleted);
 
+    const onPollUpdated = (event: {
+      pollId: string;
+      messageId: string;
+      conversationId: string;
+      poll: any;
+    }) => {
+      dispatch(
+        socketPollUpdated({
+          messageId: event.messageId,
+          conversationId: event.conversationId,
+          poll: event.poll,
+        })
+      );
+    };
+    const onPollDeleted = (event: {
+      pollId: string;
+      messageId: string;
+      conversationId: string;
+    }) => {
+      dispatch(
+        socketPollDeleted({
+          messageId: event.messageId,
+          conversationId: event.conversationId,
+        })
+      );
+    };
+    appSocket.on('poll:created', onPollUpdated);
+    appSocket.on('poll:voted', onPollUpdated);
+    appSocket.on('poll:option_added', onPollUpdated);
+    appSocket.on('poll:updated', onPollUpdated);
+    appSocket.on('poll:closed', onPollUpdated);
+    appSocket.on('poll:deleted', onPollDeleted);
+
     return () => {
       appSocket.off('message:new', onMessageNew);
       appSocket.off('message:revoked', onMessageRevoked);
@@ -476,6 +511,12 @@ export function ChatSocketInitializer() {
       appSocket.off('note:created', onNoteCreated);
       appSocket.off('note:updated', onNoteUpdated);
       appSocket.off('note:deleted', onNoteDeleted);
+      appSocket.off('poll:created', onPollUpdated);
+      appSocket.off('poll:voted', onPollUpdated);
+      appSocket.off('poll:option_added', onPollUpdated);
+      appSocket.off('poll:updated', onPollUpdated);
+      appSocket.off('poll:closed', onPollUpdated);
+      appSocket.off('poll:deleted', onPollDeleted);
     };
   }, [user, dispatch, activeConversationId]);
 

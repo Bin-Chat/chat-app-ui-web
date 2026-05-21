@@ -120,10 +120,10 @@ function extractApiError(err: unknown): string {
   return String(err);
 }
 
-function getFileCategory(file: File): 'image' | 'video' | 'document' | 'audio' {
+function getFileCategory(file: File): 'image' | 'video' | 'document' | 'voice' {
   if (file.type.startsWith('image/')) return 'image';
   if (file.type.startsWith('video/')) return 'video';
-  if (file.type.startsWith('audio/')) return 'audio';
+  if (file.type.startsWith('audio/')) return 'voice';
   return 'document';
 }
 
@@ -457,7 +457,9 @@ export default function MessageInput({
     // Edit mode
     if (editingMessage) {
       try {
-        await dispatch(editMessage({ messageId: editingMessage._id, content: trimmed })).unwrap();
+        await dispatch(
+          editMessage({ messageId: editingMessage._id, conversationId, content: trimmed })
+        ).unwrap();
         setText('');
         onCancelEdit?.();
       } catch (err: unknown) {
