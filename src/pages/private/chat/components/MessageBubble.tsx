@@ -19,6 +19,7 @@ import {
   Languages,
   ShieldAlert,
   StickyNote,
+  Bot,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
@@ -31,6 +32,7 @@ import ImageGrid from './ImageGrid';
 import TranslateMessageModal from './TranslateMessageModal';
 import ReminderMessageCard from './ReminderMessageCard';
 import NoteMessageCard from './NoteMessageCard';
+import TaskListMessageCard from './TaskListMessageCard';
 import PollBubble from './PollBubble';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
@@ -122,6 +124,7 @@ export default function MessageBubble({
 
   const isRevoked = !!message.revokedAt;
   const isSystemMsg = message.type === 'system' || message.senderId === 'system';
+  const isBotMsg = message.senderId === 'binchat-ai-bot';
   const timeStr = format(new Date(message.createdAt), 'HH:mm');
 
   const canRevoke =
@@ -287,6 +290,16 @@ export default function MessageBubble({
     if (message.metadata?.type === 'note_action') {
       return (
         <NoteMessageCard
+          metadata={message.metadata as any}
+          currentUserId={currentUser?.id ?? ''}
+          conversationId={conversationId}
+        />
+      );
+    }
+
+    if (message.metadata?.type === 'task_list_created') {
+      return (
+        <TaskListMessageCard
           metadata={message.metadata as any}
           currentUserId={currentUser?.id ?? ''}
           conversationId={conversationId}
@@ -482,7 +495,17 @@ export default function MessageBubble({
     >
       {showAvatar && !isMine && (
         <div className="mr-2 mt-auto mb-1 flex-shrink-0">
-          <UserAvatar src={senderAvatar} name={senderName} size={28} />
+          {isBotMsg ? (
+            <div className="relative w-[28px] h-[28px]">
+              <div className="w-[28px] h-[28px] rounded-full bg-gradient-to-br from-[#0068FF] to-sky-400 flex items-center justify-center shadow-sm">
+                <Bot className="w-[15px] h-[15px] text-white" />
+              </div>
+              {/* Online indicator */}
+              <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full bg-blue-400 border-[1.5px] border-white" />
+            </div>
+          ) : (
+            <UserAvatar src={senderAvatar} name={senderName} size={28} />
+          )}
         </div>
       )}
 
@@ -491,6 +514,19 @@ export default function MessageBubble({
           <p className="text-[11px] text-gray-400 mb-0.5 flex items-center gap-1">
             <CornerUpRight className="w-3 h-3" /> Đã chuyển tiếp
           </p>
+        )}
+
+        {/* Bot sender badge */}
+        {isBotMsg && showAvatar && (
+          <div className="flex items-center gap-1 mb-1">
+            <span className="flex items-center gap-1 text-[11px] font-semibold text-[#0068FF]">
+              <Bot className="w-3 h-3" />
+              BinChat Bot
+            </span>
+            <span className="px-1.5 py-0.5 rounded-full bg-[#0068FF]/10 text-[9px] font-bold text-[#0068FF] uppercase tracking-wide leading-none">
+              AI
+            </span>
+          </div>
         )}
 
         {/* Bubble */}
@@ -508,7 +544,9 @@ export default function MessageBubble({
                     : 'bg-white overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.06)] border border-gray-100'
                   : isMine
                     ? 'bg-[#0068FF] text-white px-3 py-2'
-                    : 'bg-white text-gray-800 shadow-[0_1px_2px_rgba(0,0,0,0.06)] px-3 py-2'
+                    : isBotMsg
+                      ? 'bg-[#0068FF]/[0.04] text-gray-800 shadow-[0_1px_2px_rgba(0,0,0,0.04)] border border-[#0068FF]/10 px-3 py-2'
+                      : 'bg-white text-gray-800 shadow-[0_1px_2px_rgba(0,0,0,0.06)] px-3 py-2'
           }`}
         >
           {/* Reply quoted band */}

@@ -520,6 +520,56 @@ export function ChatSocketInitializer() {
     appSocket.on('poll:closed', onPollUpdated);
     appSocket.on('poll:deleted', onPollDeleted);
 
+    // ── Tasks ────────────────────────────────────────────────────────
+    const onTaskCreated = (event: any) => {
+      if (Array.isArray(event.tasks)) {
+        window.dispatchEvent(
+          new CustomEvent('task:batch_created', {
+            detail: { conversationId: event.conversationId, tasks: event.tasks },
+          })
+        );
+      } else if (event.task) {
+        window.dispatchEvent(
+          new CustomEvent('task:created', {
+            detail: { conversationId: event.conversationId, task: event.task },
+          })
+        );
+      }
+    };
+    const onTaskUpdated = (event: any) => {
+      window.dispatchEvent(
+        new CustomEvent('task:updated', {
+          detail: { conversationId: event.conversationId, task: event.task },
+        })
+      );
+    };
+    const onTaskCompleted = (event: any) => {
+      window.dispatchEvent(
+        new CustomEvent('task:completed', {
+          detail: { conversationId: event.conversationId, task: event.task },
+        })
+      );
+    };
+    const onTaskDeleted = (event: any) => {
+      window.dispatchEvent(
+        new CustomEvent('task:deleted', {
+          detail: { conversationId: event.conversationId, taskId: event.taskId },
+        })
+      );
+    };
+    const onTaskAssigned = (event: any) => {
+      if (event.assigneeId !== user?.id) return;
+      toast.info(`📋 Bạn được giao công việc: ${event.title}`, {
+        autoClose: 8000,
+        position: 'top-right',
+      });
+    };
+    appSocket.on('task:created', onTaskCreated);
+    appSocket.on('task:updated', onTaskUpdated);
+    appSocket.on('task:completed', onTaskCompleted);
+    appSocket.on('task:deleted', onTaskDeleted);
+    appSocket.on('task:assigned', onTaskAssigned);
+
     return () => {
       appSocket.off('message:new', onMessageNew);
       appSocket.off('message:revoked', onMessageRevoked);
@@ -563,6 +613,11 @@ export function ChatSocketInitializer() {
       appSocket.off('poll:updated', onPollUpdated);
       appSocket.off('poll:closed', onPollUpdated);
       appSocket.off('poll:deleted', onPollDeleted);
+      appSocket.off('task:created', onTaskCreated);
+      appSocket.off('task:updated', onTaskUpdated);
+      appSocket.off('task:completed', onTaskCompleted);
+      appSocket.off('task:deleted', onTaskDeleted);
+      appSocket.off('task:assigned', onTaskAssigned);
     };
   }, [user, dispatch, activeConversationId]);
 

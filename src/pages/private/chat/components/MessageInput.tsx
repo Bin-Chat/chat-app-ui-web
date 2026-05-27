@@ -12,6 +12,9 @@ import {
   Wand2,
   Mic,
   Square,
+  Bot,
+  Sparkles,
+  AtSign,
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 
@@ -65,6 +68,13 @@ async function convertToWav(blob: Blob, filename: string): Promise<File> {
   }
 }
 
+interface MentionMember {
+  userId: string;
+  name: string;
+  avatar?: string;
+  isBot?: boolean;
+}
+
 interface MessageInputProps {
   conversationId: string;
   replyingTo?: Message | null;
@@ -72,6 +82,7 @@ interface MessageInputProps {
   editingMessage?: Message | null;
   onCancelEdit?: () => void;
   currentUserName?: string;
+  members?: MentionMember[];
 }
 
 interface PendingAttachment {
@@ -192,6 +203,7 @@ export default function MessageInput({
   editingMessage,
   onCancelEdit,
   currentUserName = '',
+  members = [],
 }: MessageInputProps) {
   const dispatch = useAppDispatch();
   const sending = useAppSelector((s) => s.chat.sendingMessage);
@@ -200,6 +212,13 @@ export default function MessageInput({
   const [showEmoji, setShowEmoji] = useState(false);
   const [showFilePicker, setShowFilePicker] = useState(false);
   const [showRewrite, setShowRewrite] = useState(false);
+  const [hasBotMention, setHasBotMention] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const filteredMentions = mentionQuery === null ? [] : (
+    mentionQuery.trim() === ''
+      ? members
+      : members.filter((m) => m.name.toLowerCase().includes(mentionQuery.toLowerCase()))
+  );
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
@@ -449,6 +468,7 @@ export default function MessageInput({
 
   const handleSend = async () => {
     const trimmed = text.trim();
+    setMentionQuery(null);
     if (!editingMessage && !trimmed && attachments.length === 0) return;
     if (editingMessage && !trimmed) return;
 
@@ -461,6 +481,7 @@ export default function MessageInput({
           editMessage({ messageId: editingMessage._id, conversationId, content: trimmed })
         ).unwrap();
         setText('');
+        setHasBotMention(false);
         onCancelEdit?.();
       } catch (err: unknown) {
         toast.error(extractApiError(err));
@@ -480,6 +501,7 @@ export default function MessageInput({
       : undefined;
 
     setText('');
+    setHasBotMention(false);
     onCancelReply?.();
 
     try {
@@ -544,12 +566,26 @@ export default function MessageInput({
 
   // Auto-resize textarea
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setText(e.target.value);
+    const val = e.target.value;
+    setText(val);
+    setHasBotMention(/@bot\b/i.test(val));
+    // Detect @query at end of text for mention autocomplete
+    const m = val.match(/@([^@]*)$/);
+    setMentionQuery(m ? m[1] : null);
     const el = e.target;
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, 120) + 'px';
-    if (e.target.value.trim()) emitTypingStart();
+    if (val.trim()) emitTypingStart();
     else stopTyping();
+  };
+
+  const insertMention = (member: MentionMember) => {
+    const tag = member.isBot ? '@bot' : `@${member.name}`;
+    const newText = text.replace(/@([^@]*)$/, `${tag} `);
+    setText(newText);
+    setHasBotMention(/@bot\b/i.test(newText));
+    setMentionQuery(null);
+    setTimeout(() => textareaRef.current?.focus(), 0);
   };
 
   return (
@@ -723,6 +759,82 @@ export default function MessageInput({
           />
         </div>
 
+        {/* @mention autocomplete dropdown */}
+        {filteredMentions.length > 0 && !isRecording && (
+          <div className="mb-2 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-[0_-4px_24px_rgba(0,0,0,0.10)] animate-in slide-in-from-bottom-2 duration-200">
+            {/* Header */}
+            <div className="flex items-center gap-1.5 px-3 py-2 border-b border-gray-100 bg-gray-50/80">
+              <AtSign className="w-3 h-3 text-gray-400" />
+              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Nhắc đến</span>
+            </div>
+            <div className="max-h-48 overflow-y-auto">
+              {filteredMentions.map((member) => (
+                <button
+                  key={member.userId}
+                  type="button"
+                  onMouseDown={(e) => { e.preventDefault(); insertMention(member); }}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-[#F0F7FF] active:bg-[#E0EFFF] transition-colors group"
+                >
+                  {/* Avatar */}
+                  <div className="relative flex-shrink-0">
+                    {member.isBot ? (
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#0068FF] to-[#38BDF8] flex items-center justify-center shadow-sm">
+                        <Bot className="w-[18px] h-[18px] text-white" />
+                      </div>
+                    ) : member.avatar ? (
+                      <img src={member.avatar} className="w-9 h-9 rounded-full object-cover shadow-sm" alt={member.name} />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-400 to-purple-500 flex items-center justify-center shadow-sm">
+                        <span className="text-[14px] font-bold text-white">{member.name.charAt(0).toUpperCase()}</span>
+                      </div>
+                    )}
+                    {/* Online dot placeholder */}
+                    {!member.isBot && (
+                      <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-400 border-2 border-white rounded-full" />
+                    )}
+                  </div>
+
+                  {/* Name + subtitle */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[13px] font-semibold text-gray-800 truncate group-hover:text-[#0068FF] transition-colors">
+                        {member.name}
+                      </span>
+                      {member.isBot && (
+                        <span className="text-[9px] font-bold text-white bg-gradient-to-r from-[#0068FF] to-sky-400 px-1.5 py-0.5 rounded-full leading-none flex-shrink-0">AI</span>
+                      )}
+                    </div>
+                    <span className="text-[11px] text-gray-400">
+                      {member.isBot ? 'BinChat AI Assistant' : `@${member.name}`}
+                    </span>
+                  </div>
+
+                  {/* Arrow hint */}
+                  <div className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-100 group-hover:bg-[#0068FF] flex items-center justify-center transition-colors">
+                    <svg className="w-2.5 h-2.5 text-gray-400 group-hover:text-white transition-colors" viewBox="0 0 10 10" fill="none">
+                      <path d="M2 5h6M5.5 2l3 3-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Bot mention indicator */}
+        {hasBotMention && !isRecording && (
+          <div className="flex items-center gap-2 mb-2 px-3 py-2 rounded-xl border border-[#0068FF]/20 bg-[#0068FF]/[0.04] animate-in slide-in-from-bottom-1 duration-200">
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#0068FF] to-sky-400 flex items-center justify-center flex-shrink-0">
+              <Bot className="w-3.5 h-3.5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-[12px] font-semibold text-[#0068FF]">BinChat Bot</span>
+              <span className="text-[11px] text-[#0068FF]/50 ml-1.5">đang ược kích hoạt</span>
+            </div>
+            <Sparkles className="w-3.5 h-3.5 text-[#0068FF]/50 flex-shrink-0 animate-pulse" />
+          </div>
+        )}
+
         {/* Text area */}
         {isRecording ? (
           <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-xl">
@@ -739,7 +851,11 @@ export default function MessageInput({
             onKeyDown={handleKeyDown}
             placeholder="Nhập tin nhắn..."
             rows={1}
-            className="flex-1 resize-none text-[13px] py-2.5 px-3 bg-gray-50 border border-gray-100 rounded-xl outline-none focus:border-[#0068FF]/40 focus:bg-white transition-colors max-h-[120px] leading-relaxed"
+            className={`flex-1 resize-none text-[13px] py-2.5 px-3 bg-gray-50 border rounded-xl outline-none transition-colors max-h-[120px] leading-relaxed ${
+              hasBotMention
+                ? 'border-[#0068FF]/30 bg-[#0068FF]/[0.03] focus:border-[#0068FF]/40'
+                : 'border-gray-100 focus:border-[#0068FF]/40 focus:bg-white'
+            }`}
           />
         )}
 

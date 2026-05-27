@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from 'react';
-import { Info, Pin, ChevronDown, Ban, Phone, Video, Search, FileText, Bot } from 'lucide-react';
+import { Info, Pin, ChevronDown, Ban, Phone, Video, Search, FileText, Bot, CheckSquare } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { toast } from 'react-toastify';
@@ -20,6 +20,7 @@ import MessageBubble from './MessageBubble';
 import ReminderMessageCard from './ReminderMessageCard';
 import NoteMessageCard from './NoteMessageCard';
 import NoteListModal from './NoteListModal';
+import TaskPanel from './TaskPanel';
 import { StickyNote } from 'lucide-react';
 import { chatServices } from '@/services/chatServices';
 import type { Note } from '@/types/note.type';
@@ -339,6 +340,7 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
   // ── Pinned notes (in banner alongside pinned messages) ──────────────────
   const [pinnedNotes, setPinnedNotes] = useState<Note[]>([]);
   const [showNoteListModal, setShowNoteListModal] = useState(false);
+  const [showTaskPanel, setShowTaskPanel] = useState(false);
   useEffect(() => {
     if (!conversationId) return;
     let cancelled = false;
@@ -507,6 +509,18 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
             }`}
           >
             <Info className="w-5 h-5" />
+          </button>
+          {/* Tasks */}
+          <button
+            onClick={() => setShowTaskPanel(true)}
+            title="Công việc nhóm"
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+              showTaskPanel
+                ? 'bg-emerald-50 text-emerald-600'
+                : 'text-gray-500 hover:bg-gray-100'
+            }`}
+          >
+            <CheckSquare className="w-5 h-5" />
           </button>
           {/* AI buttons */}
           <button
@@ -819,6 +833,20 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
             editingMessage={editingMessage}
             onCancelEdit={() => setEditingMessage(null)}
             currentUserName={currentUser?.fullName ?? ''}
+            members={[
+              { userId: 'binchat-ai-bot', name: 'BinChat Bot', isBot: true },
+              ...((conversation?.participants ?? []) as any[])
+                .filter((p) => p.userId !== currentUser?.id && p.userId !== 'binchat-ai-bot')
+                .map((p) => {
+                  const fr = friends.find((f) => f.user.id === p.userId)?.user;
+                  const prof = groupMemberProfiles[p.userId];
+                  return {
+                    userId: p.userId,
+                    name: fr?.fullName ?? prof?.fullName ?? p.fullName ?? p.userId,
+                    avatar: fr?.avatar ?? prof?.avatar ?? undefined,
+                  };
+                }),
+            ]}
           />
         )}
 
@@ -873,6 +901,16 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
           currentUserId={currentUser?.id ?? ''}
           isAdmin={isAdminOrOwner}
           onClose={() => setShowNoteListModal(false)}
+        />
+      )}
+
+      {showTaskPanel && conversation && (
+        <TaskPanel
+          conversationId={conversationId}
+          currentUserId={currentUser?.id ?? ''}
+          members={conversation.participants ?? []}
+          isAdmin={isAdminOrOwner}
+          onClose={() => setShowTaskPanel(false)}
         />
       )}
     </div>
