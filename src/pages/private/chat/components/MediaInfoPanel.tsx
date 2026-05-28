@@ -61,9 +61,8 @@ function MediaSection({ conversationId }: { conversationId: string }) {
       setLoading(true);
       try {
         const res = await chatServices.getConversationMedia(conversationId, 'image', cursor);
-        setItems((prev) =>
-          cursor ? [...prev, ...(res.items as MediaItem[])] : (res.items as MediaItem[])
-        );
+        const mediaItems = res.items as unknown as MediaItem[];
+        setItems((prev) => (cursor ? [...prev, ...mediaItems] : mediaItems));
         setHasMore(res.hasMore);
         setNextCursor(res.nextCursor);
       } catch {
@@ -159,9 +158,8 @@ function FileSection({ conversationId }: { conversationId: string }) {
       setLoading(true);
       try {
         const res = await chatServices.getConversationMedia(conversationId, 'file', cursor);
-        setItems((prev) =>
-          cursor ? [...prev, ...(res.items as FileItem[])] : (res.items as FileItem[])
-        );
+        const fileItems = res.items as unknown as FileItem[];
+        setItems((prev) => (cursor ? [...prev, ...fileItems] : fileItems));
         setHasMore(res.hasMore);
         setNextCursor(res.nextCursor);
       } catch {
@@ -240,9 +238,8 @@ function LinkSection({ conversationId }: { conversationId: string }) {
       setLoading(true);
       try {
         const res = await chatServices.getConversationMedia(conversationId, 'link', cursor);
-        setItems((prev) =>
-          cursor ? [...prev, ...(res.items as LinkItem[])] : (res.items as LinkItem[])
-        );
+        const linkItems = res.items as unknown as LinkItem[];
+        setItems((prev) => (cursor ? [...prev, ...linkItems] : linkItems));
         setHasMore(res.hasMore);
         setNextCursor(res.nextCursor);
       } catch {

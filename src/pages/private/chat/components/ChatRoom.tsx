@@ -1,5 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from 'react';
-import { Info, Pin, ChevronDown, Ban, Phone, Video, Search, FileText, Bot, CheckSquare } from 'lucide-react';
+import {
+  Info,
+  Pin,
+  ChevronDown,
+  Ban,
+  Phone,
+  Video,
+  Search,
+  FileText,
+  Bot,
+  CheckSquare,
+} from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { toast } from 'react-toastify';
@@ -32,6 +43,7 @@ import AiSearchPanel from './AiSearchPanel';
 import AiSummaryModal from './AiSummaryModal';
 import AiBotPanel from './AiBotPanel';
 import type { Message } from '@/types/chat.type';
+import type { User } from '@/types/user.type';
 
 interface ChatRoomProps {
   conversationId: string;
@@ -89,7 +101,9 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
         id: profile.id,
         fullName: profile.fullName,
         avatar: profile.avatar ?? undefined,
-      } as const;
+        email: '',
+        isActive: true,
+      } satisfies User;
     return null;
   }, [conversation, currentUser, friends, groupMemberProfiles]);
 
@@ -515,9 +529,7 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
             onClick={() => setShowTaskPanel(true)}
             title="Công việc nhóm"
             className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
-              showTaskPanel
-                ? 'bg-emerald-50 text-emerald-600'
-                : 'text-gray-500 hover:bg-gray-100'
+              showTaskPanel ? 'bg-emerald-50 text-emerald-600' : 'text-gray-500 hover:bg-gray-100'
             }`}
           >
             <CheckSquare className="w-5 h-5" />
@@ -719,7 +731,7 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
             const senderAvatar = senderFriend?.avatar ?? senderProfile?.avatar ?? null;
 
             // Show sender name in group chats (not for system messages)
-            const isSystemMsg = msg.type === 'system' || msg.senderId === 'system';
+            const isSystemMsg = (msg as Message).type === 'system' || msg.senderId === 'system';
             const showSenderName =
               !isSystemMsg && conversation?.type === 'group' && !isMine && showAvatar;
 

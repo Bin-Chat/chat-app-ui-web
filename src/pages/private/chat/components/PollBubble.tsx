@@ -91,9 +91,7 @@ export default function PollBubble({ message, conversationId, isMine }: Props) {
   const hasVoted = effectiveMyVotes.length > 0;
   const showResults = poll.canSeeResults || hasVoted || !isActive;
 
-  const creatorParticipant = conv?.participants?.find((p) => p.userId === poll.createdBy);
-  const creatorName =
-    poll.createdBy === currentUser?.id ? 'Bạn' : (creatorParticipant?.nickname ?? 'Thành viên');
+  const creatorName = poll.createdBy === currentUser?.id ? 'Bạn' : 'Thành viên';
 
   const handleToggleVote = async (optionId: string) => {
     if (!isActive || busy) return;
