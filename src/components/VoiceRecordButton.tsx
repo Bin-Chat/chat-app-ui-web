@@ -27,7 +27,7 @@ async function uploadAudioBlob(blob: Blob): Promise<{ url: string; size: number 
     filename,
     mimeType: blob.type,
     fileSize: blob.size,
-    category: 'voice',
+    category: 'audio',
   });
 
   await fetch(presign.presignedUrl, {
@@ -38,7 +38,7 @@ async function uploadAudioBlob(blob: Blob): Promise<{ url: string; size: number 
 
   const { data: finalize } = await authorizedAxios.post<FinalizeResponse>('/api/uploads/finalize', {
     objectKey: presign.objectKey,
-    category: 'voice',
+    category: 'audio',
   });
 
   return { url: finalize.cdnUrl, size: finalize.size || blob.size };

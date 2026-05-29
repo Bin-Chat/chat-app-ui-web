@@ -131,10 +131,10 @@ function extractApiError(err: unknown): string {
   return String(err);
 }
 
-function getFileCategory(file: File): 'image' | 'video' | 'document' | 'voice' {
+function getFileCategory(file: File): 'image' | 'video' | 'document' | 'audio' {
   if (file.type.startsWith('image/')) return 'image';
   if (file.type.startsWith('video/')) return 'video';
-  if (file.type.startsWith('audio/')) return 'voice';
+  if (file.type.startsWith('audio/')) return 'audio';
   return 'document';
 }
 

@@ -35,10 +35,10 @@ function getCategory(mimeType: string): AttachmentFileCategory {
   return 'file';
 }
 
-function getUploadCategory(mimeType: string): 'image' | 'video' | 'document' | 'voice' {
+function getUploadCategory(mimeType: string): 'image' | 'video' | 'document' | 'audio' {
   if (mimeType.startsWith('image/')) return 'image';
   if (mimeType.startsWith('video/')) return 'video';
-  if (mimeType.startsWith('audio/')) return 'voice';
+  if (mimeType.startsWith('audio/')) return 'audio';
   return 'document';
 }
 

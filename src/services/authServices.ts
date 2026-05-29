@@ -123,7 +123,7 @@ export const authServices = {
   // ── File Upload ───────────────────────────────────────────────────────────
 
   presignUpload: (data: {
-    category: 'avatar' | 'image' | 'video' | 'document' | 'voice';
+    category: 'avatar' | 'image' | 'video' | 'document' | 'audio';
     filename: string;
     mimeType: string;
     fileSize: number;
