@@ -54,7 +54,7 @@ function showBrowserNotification(msg: Message, senderName?: string) {
 
   const title = senderName ?? 'Tin nhắn mới';
   const body = msg.content || (msg.attachments.length > 0 ? '[Tệp đính kèm]' : '');
-  const n = new Notification(title, { body, icon: '/favicon.ico', tag: msg.conversationId });
+  const n = new Notification(title, { body, icon: '/favicon.png', tag: msg.conversationId });
   setTimeout(() => n.close(), 5000);
 }
 
@@ -433,7 +433,7 @@ export function ChatSocketInitializer() {
       if ('Notification' in window && Notification.permission === 'granted') {
         const n = new Notification('⏰ Nhắc hẹn', {
           body: event.content,
-          icon: '/favicon.ico',
+          icon: '/favicon.png',
           tag: `reminder-${event.conversationId}`,
         });
         setTimeout(() => n.close(), 10000);
