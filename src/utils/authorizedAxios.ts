@@ -3,6 +3,7 @@ import type { InternalAxiosRequestConfig } from 'axios';
 import { toast } from 'react-toastify';
 import type { AppStore } from '@/store';
 import { setAuth, logoutUser } from '@/store/slices/authSlice';
+import { attachClientRateLimiter, attachRetry3s } from './apiFaultTolerance';
 
 // Extend Axios config để thêm flag `_retry`
 interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
@@ -23,6 +24,8 @@ const authorizedAxios = axios.create({
   timeout: 1000 * 60 * 10, // 10 phút
   withCredentials: true,
 });
+
+attachClientRateLimiter(authorizedAxios);
 
 // Biến lưu promise refresh (để tránh gọi nhiều lần)
 let refreshTokenPromise: Promise<unknown> | null = null;
@@ -140,5 +143,7 @@ authorizedAxios.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+attachRetry3s(authorizedAxios);
 
 export default authorizedAxios;

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { API_VERSION } from '@/config/api.config';
+import { attachClientRateLimiter, attachRetry3s } from './apiFaultTolerance';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -12,6 +13,8 @@ const publicAxios = axios.create({
     'Content-Type': 'application/json',
   },
 });
+
+attachClientRateLimiter(publicAxios);
 
 // Response interceptor - Selective error handling
 publicAxios.interceptors.response.use(
@@ -28,5 +31,7 @@ publicAxios.interceptors.response.use(
     return Promise.reject(error);
   }
 );
+
+attachRetry3s(publicAxios);
 
 export default publicAxios;
