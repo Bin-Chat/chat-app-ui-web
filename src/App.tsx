@@ -12,6 +12,7 @@ import AuthRoute from './routes/AuthRoute';
 import ChatPage from '@/pages/private/chat/ChatPage';
 import IncomingCallModal from './components/call/IncomingCallModal';
 import CallRoom from './components/call/CallRoom';
+import SessionTerminationModal from './components/SessionTerminationModal';
 
 // Layouts
 import EmptyLayout from '@/layouts/EmptyLayout';
@@ -23,7 +24,7 @@ import Login from '@/pages/auth/Login/Login';
 import Register from '@/pages/auth/Register/Register';
 import ForgotPassword from '@/pages/auth/ForgotPassword/ForgotPassword';
 import VerifyEmail from '@/pages/auth/VerifyEmail/VerifyEmail';
-import AdminDashboard from '@/pages/admin/AdminDashboard';
+import AdminDashboard, { type AdminPageId } from '@/pages/admin/AdminDashboard';
 import NotFound from '@/pages/public/NotFound';
 import JoinGroup from '@/pages/public/JoinGroup';
 import ContactsPage from '@/pages/private/contacts';
@@ -102,7 +103,18 @@ const router = createBrowserRouter([
       {
         path: '',
         element: <EmptyLayout />,
-        children: [{ index: true, element: <AdminDashboard /> }],
+        children: [
+          { index: true, element: <AdminDashboard /> },
+          ...([
+            ['users', 'users'],
+            ['moderation', 'moderation'],
+            ['ai', 'ai'],
+            ['health', 'health'],
+          ] as Array<[string, AdminPageId]>).map(([path, activeTab]) => ({
+            path,
+            element: <AdminDashboard activeTab={activeTab} />,
+          })),
+        ],
       },
     ],
   },
@@ -135,6 +147,7 @@ function App() {
           theme="light"
         />
         <RouterProvider router={router} />
+        <SessionTerminationModal />
         {/* Call overlays — render on top of everything */}
         <IncomingCallModal />
         {callStatus !== 'idle' && <CallRoom />}

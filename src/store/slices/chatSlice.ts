@@ -451,6 +451,25 @@ const chatSlice = createSlice({
         }
       }
     },
+    socketMessageRestored: (
+      state,
+      action: PayloadAction<{ messageId: string; conversationId: string }>
+    ) => {
+      const { messageId, conversationId } = action.payload;
+      const msgs = state.messages[conversationId];
+      if (msgs) {
+        const msg = msgs.find((item) => item._id === messageId);
+        if (msg) {
+          msg.revokedAt = null;
+          msg.revokedBy = null;
+        }
+      }
+      const conv = state.conversations.find((item) => item._id === conversationId);
+      if (conv?.lastMessage) {
+        const isLast = msgs && msgs.length > 0 && msgs[msgs.length - 1]?._id === messageId;
+        if (isLast) conv.lastMessage = { ...conv.lastMessage, revokedAt: null };
+      }
+    },
     socketConversationUpdated: (
       state,
       action: PayloadAction<{
@@ -981,6 +1000,7 @@ export const {
   clearChatError,
   socketMessageNew,
   socketMessageRevoked,
+  socketMessageRestored,
   socketMessageEdited,
   socketMessagePinned,
   socketMessageUnpinned,

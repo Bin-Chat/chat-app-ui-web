@@ -31,7 +31,7 @@ export const AppInitializer = () => {
             const hasLoginFlag =
                 localStorage.getItem('userLoggedIn') === 'true';
             if (hasLoginFlag && !isOAuthCallback) {
-                dispatch(fetchProfile());
+                dispatch(fetchProfile(undefined));
             }
         }
     }, [dispatch]); // Only depend on dispatch

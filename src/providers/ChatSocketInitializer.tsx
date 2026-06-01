@@ -7,6 +7,7 @@ import { chatServices } from '@/services/chatServices';
 import {
   socketMessageNew,
   socketMessageRevoked,
+  socketMessageRestored,
   socketConversationUpdated,
   socketReactionToggled,
   socketGroupMembersAdded,
@@ -120,6 +121,10 @@ export function ChatSocketInitializer() {
       revokedBy?: string;
     }) => {
       dispatch(socketMessageRevoked(payload));
+    };
+
+    const onMessageRestored = (payload: { messageId: string; conversationId: string }) => {
+      dispatch(socketMessageRestored(payload));
     };
 
     const onConversationUpdated = (payload: {
@@ -399,6 +404,7 @@ export function ChatSocketInitializer() {
 
     appSocket.on('message:new', onMessageNew);
     appSocket.on('message:revoked', onMessageRevoked);
+    appSocket.on('message:restored', onMessageRestored);
     appSocket.on('conversation:updated', onConversationUpdated);
     appSocket.on('message:reaction', onReactionToggled);
     appSocket.on('group:members_added', onGroupMembersAdded);
@@ -573,6 +579,7 @@ export function ChatSocketInitializer() {
     return () => {
       appSocket.off('message:new', onMessageNew);
       appSocket.off('message:revoked', onMessageRevoked);
+      appSocket.off('message:restored', onMessageRestored);
       appSocket.off('conversation:updated', onConversationUpdated);
       appSocket.off('message:reaction', onReactionToggled);
       appSocket.off('group:members_added', onGroupMembersAdded);

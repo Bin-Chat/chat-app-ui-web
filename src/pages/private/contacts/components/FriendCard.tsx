@@ -131,7 +131,7 @@ export default function FriendCard({ item, isSelected, onClick }: FriendCardProp
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 10 }}
                 transition={{ duration: 0.16 }}
-                className="pointer-events-auto w-[320px] bg-white rounded-2xl shadow-xl p-6"
+                className="pointer-events-auto w-[min(320px,calc(100vw-32px))] bg-white rounded-2xl shadow-xl p-6"
               >
                 <p className="text-[15px] font-semibold text-gray-800 mb-1">Xóa bạn bè?</p>
                 <p className="text-[13px] text-gray-500 mb-5">

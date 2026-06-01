@@ -11,6 +11,7 @@ import {
   fetchReceivedRequests,
   fetchFriends,
   forceLogout,
+  showSessionNotice,
 } from '@/store/slices';
 
 /**
@@ -66,10 +67,10 @@ export function FriendSocketInitializer() {
     const onSessionKicked = (payload: any) => {
       // Chỉ logout nếu event nhắm vào loại thiết bị 'web' (web app)
       if (payload?.deviceType && payload.deviceType !== 'web') return;
-      toast.error(
-        payload?.reason ?? 'Phiên đăng nhập đã hết hạn vì tài khoản vừa đăng nhập ở thiết bị khác.',
-        { toastId: 'session-kicked', autoClose: 6000 }
-      );
+      dispatch(showSessionNotice({
+        reasonCode: payload?.reasonCode ?? 'session_expired',
+        message: payload?.reason ?? 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
+      }));
       // Dùng forceLogout thay vì logoutUser() vì session đã bị vô hiệu —
       // gọi POST /logout sẽ bị JwtAuthGuard chặn (deviceId không khớp) → 401 → không logout được
       dispatch(forceLogout());

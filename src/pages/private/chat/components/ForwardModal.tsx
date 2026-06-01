@@ -69,7 +69,7 @@ export default function ForwardModal({ messageId, onClose }: ForwardModalProps) 
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.94, y: 10 }}
           transition={{ duration: 0.18, ease: 'easeOut' }}
-          className="pointer-events-auto w-[380px] max-h-[500px] bg-white rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.14)] flex flex-col overflow-hidden"
+          className="pointer-events-auto w-[min(380px,calc(100vw-32px))] max-h-[500px] bg-white rounded-2xl shadow-[0_24px_64px_rgba(0,0,0,0.14)] flex flex-col overflow-hidden"
         >
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">

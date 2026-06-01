@@ -67,9 +67,9 @@ export default function ContactsPage() {
   const isLoading = activeTab === 'friends' ? loadingFriends : loadingRequests;
 
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
       {/* ── Left panel (sub-sidebar) ──────────────────────────────────── */}
-      <div className="w-[280px] flex flex-col bg-white border-r border-gray-100 flex-shrink-0">
+      <div className="w-full md:w-[280px] max-h-[46vh] md:max-h-none flex flex-col bg-white border-b md:border-b-0 md:border-r border-gray-100 flex-shrink-0">
         {/* Header */}
         <div className="flex items-center justify-between px-4 pt-4 pb-3">
           <h2 className="text-[16px] font-bold text-gray-800">Danh bạ</h2>
@@ -134,7 +134,7 @@ export default function ContactsPage() {
         </div>
 
         {/* List */}
-        <div className="flex-1 overflow-y-auto py-1.5">
+        <div className="flex-1 min-h-0 overflow-y-auto py-1.5">
           {isLoading ? (
             <div className="flex justify-center py-8">
               <Loader2 className="w-6 h-6 text-[#0068FF] animate-spin" />
@@ -212,7 +212,7 @@ export default function ContactsPage() {
       </div>
 
       {/* ── Right panel ───────────────────────────────────────────────── */}
-      <div className="flex-1 min-w-0 flex overflow-hidden">
+      <div className="flex-1 min-w-0 min-h-0 flex overflow-hidden">
         <AnimatePresence mode="wait">
           {showAddPanel ? (
             <motion.div

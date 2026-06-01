@@ -10,6 +10,7 @@ import {
   FileText,
   Bot,
   CheckSquare,
+  ArrowLeft,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { vi } from 'date-fns/locale';
@@ -47,9 +48,10 @@ import type { User } from '@/types/user.type';
 
 interface ChatRoomProps {
   conversationId: string;
+  onBack?: () => void;
 }
 
-export default function ChatRoom({ conversationId }: ChatRoomProps) {
+export default function ChatRoom({ conversationId, onBack }: ChatRoomProps) {
   const dispatch = useAppDispatch();
   const messages = useAppSelector((s) => s.chat.messages[conversationId] ?? []);
   const hasMore = useAppSelector((s) => s.chat.hasMore[conversationId] ?? true);
@@ -481,10 +483,17 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
   );
 
   return (
-    <div className="flex h-full">
+    <div className="relative flex h-full w-full min-w-0">
       <div className="flex flex-col flex-1 min-w-0 bg-[#F0F2F5]">
         {/* Header */}
-        <div className="flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-100 flex-shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-4 py-2.5 sm:py-3 bg-white border-b border-gray-100 flex-shrink-0">
+          <button
+            onClick={onBack}
+            className="md:hidden w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 flex-shrink-0"
+            title="Quay lại"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
           <UserAvatar
             src={avatarSrc}
             name={displayName}
@@ -516,9 +525,10 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
               </p>
             )}
           </div>
+          <div className="flex items-center gap-1 sm:gap-2 overflow-x-auto scrollbar-thin flex-shrink-0 max-w-[52vw] sm:max-w-none">
           <button
             onClick={() => setShowGroupInfo((v) => !v)}
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
               showGroupInfo ? 'bg-[#EBF3FF] text-[#0068FF]' : 'text-gray-500 hover:bg-gray-100'
             }`}
           >
@@ -528,7 +538,7 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
           <button
             onClick={() => setShowTaskPanel(true)}
             title="Công việc nhóm"
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
               showTaskPanel ? 'bg-emerald-50 text-emerald-600' : 'text-gray-500 hover:bg-gray-100'
             }`}
           >
@@ -541,7 +551,7 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
               setShowAiBot(false);
             }}
             title="Tìm kiếm thông minh (AI)"
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
               showAiSearch ? 'bg-[#EBF3FF] text-[#0068FF]' : 'text-gray-500 hover:bg-gray-100'
             }`}
           >
@@ -550,7 +560,7 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
           <button
             onClick={() => setShowAiSummary(true)}
             title="Tóm tắt cuộc trò chuyện (AI)"
-            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+            className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors flex-shrink-0"
           >
             <FileText className="w-5 h-5" />
           </button>
@@ -560,7 +570,7 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
               setShowAiSearch(false);
             }}
             title="BinChat AI Bot"
-            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
               showAiBot ? 'bg-[#EBF3FF] text-[#0068FF]' : 'text-gray-500 hover:bg-gray-100'
             }`}
           >
@@ -572,19 +582,20 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
               <button
                 onClick={() => initiateCall('audio')}
                 title="Gọi thoại"
-                className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+                className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors flex-shrink-0"
               >
                 <Phone className="w-5 h-5" />
               </button>
               <button
                 onClick={() => initiateCall('video')}
                 title="Gọi video"
-                className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors"
+                className="w-9 h-9 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 transition-colors flex-shrink-0"
               >
                 <Video className="w-5 h-5" />
               </button>
             </>
           )}
+          </div>
         </div>
 
         {/* Ongoing group call rejoin banner */}
@@ -657,7 +668,7 @@ export default function ChatRoom({ conversationId }: ChatRoomProps) {
         <div
           ref={messagesContainerRef}
           onScroll={handleScroll}
-          className="flex-1 overflow-y-auto px-4 py-3 space-y-1"
+          className="flex-1 overflow-y-auto px-2.5 sm:px-4 py-3 space-y-1"
         >
           {loadingMessages && messages.length === 0 && (
             <div className="flex items-center justify-center h-32">

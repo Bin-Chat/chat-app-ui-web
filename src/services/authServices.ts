@@ -31,9 +31,8 @@ export const authServices = {
         ...data,
         deviceType: data.deviceType ?? 'web',
         deviceName:
-          (data.deviceName ?? navigator.userAgent.includes('Mobile'))
-            ? 'Trình duyệt mobile'
-            : 'Trình duyệt web',
+          data.deviceName ??
+          (navigator.userAgent.includes('Mobile') ? 'Trình duyệt mobile' : 'Trình duyệt web'),
       })
       .then((r) => r.data),
 
@@ -62,11 +61,16 @@ export const authServices = {
       .post<{ message: string }>('/api/auth/reset-password', { email, otp, newPassword })
       .then((r) => r.data),
 
-  getProfile: () =>
-    authorizedAxios.get<User>('/api/auth/profile').then((r) => ({
-      data: { user: r.data },
-      statusCode: r.status,
-    })),
+  getProfile: (skipAuthRefresh = false) =>
+    authorizedAxios
+      .get<User>(
+        '/api/auth/profile',
+        skipAuthRefresh ? ({ _skipAuthRefresh: true } as any) : undefined
+      )
+      .then((r) => ({
+        data: { user: r.data },
+        statusCode: r.status,
+      })),
 
   refreshToken: () =>
     publicAxios.post<AuthResponse>('/api/auth/refresh').then((r) => ({
@@ -86,6 +90,24 @@ export const authServices = {
   updateUserRole: (id: string, role: UserRole) =>
     authorizedAxios
       .patch<{ message: string }>(`/api/auth/admin/users/${id}/role`, { role })
+      .then((r) => r.data),
+
+  getAdminUserDevices: (id: string) =>
+    authorizedAxios
+      .get<
+        {
+          deviceId: string;
+          deviceType: string;
+          deviceName?: string;
+          loginAt: string;
+          isCurrent: boolean;
+        }[]
+      >(`/api/auth/admin/users/${id}/devices`)
+      .then((r) => r.data),
+
+  remoteLogoutAdminUserDevice: (userId: string, deviceId: string) =>
+    authorizedAxios
+      .delete<{ message: string }>(`/api/auth/admin/users/${userId}/devices/${deviceId}`)
       .then((r) => r.data),
 
   // ── Profile ───────────────────────────────────────────────────────────────

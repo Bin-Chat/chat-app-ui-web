@@ -7,6 +7,12 @@ export interface AuthState {
   loading: boolean;
   error: string | null;
   isLoggedIn?: boolean;
+  sessionNotice: SessionNotice | null;
+}
+
+export interface SessionNotice {
+  reasonCode: 'account_locked' | 'role_changed' | 'device_replaced' | 'remote_logout' | 'session_expired';
+  message: string;
 }
 
 const initialState: AuthState = {
@@ -14,14 +20,15 @@ const initialState: AuthState = {
   loading: localStorage.getItem('userLoggedIn') === 'true', // Start loading if logged in
   error: null,
   isLoggedIn: localStorage.getItem('userLoggedIn') === 'true',
+  sessionNotice: null,
 };
 
 // Get user profile thunk
-export const fetchProfile = createAsyncThunk<User, void, { rejectValue: string }>(
+export const fetchProfile = createAsyncThunk<User, boolean | undefined, { rejectValue: string }>(
   'auth/fetchProfile',
-  async (_, thunkAPI) => {
+  async (skipAuthRefresh, thunkAPI) => {
     try {
-      const res = await authServices.getProfile();
+      const res = await authServices.getProfile(skipAuthRefresh);
 
       return res.data.user;
     } catch (err: unknown) {
@@ -78,6 +85,7 @@ const authSlice = createSlice({
     setAuth: (state, action) => {
       state.user = action.payload.user;
       state.isLoggedIn = action.payload.isLoggedIn;
+      state.sessionNotice = null;
       // Only store login flag - never store user data in localStorage
       if (action.payload.isLoggedIn) {
         localStorage.setItem('userLoggedIn', 'true');
@@ -92,6 +100,12 @@ const authSlice = createSlice({
       state.isLoggedIn = false;
       state.loading = false;
       state.error = null;
+    },
+    showSessionNotice: (state, action) => {
+      state.sessionNotice = action.payload;
+    },
+    clearSessionNotice: (state) => {
+      state.sessionNotice = null;
     },
   },
   extraReducers: (builder) => {
@@ -128,9 +142,13 @@ const authSlice = createSlice({
         state.isLoggedIn = false;
         state.user = null;
         state.error = null;
+        state.sessionNotice = null;
       })
       .addCase(logoutUser.rejected, (state, action) => {
+        localStorage.removeItem('userLoggedIn');
         state.loading = false;
+        state.isLoggedIn = false;
+        state.user = null;
         state.error = action.payload as string;
       });
 
@@ -153,5 +171,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { setIsLogging, setUser, setAuth, forceLogout } = authSlice.actions;
+export const { setIsLogging, setUser, setAuth, forceLogout, showSessionNotice, clearSessionNotice } = authSlice.actions;
 export default authSlice.reducer;

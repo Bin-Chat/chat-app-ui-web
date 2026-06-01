@@ -133,7 +133,7 @@ export default function AiSearchPanel({
   };
 
   return (
-    <div className="flex flex-col w-[340px] h-full bg-white border-l border-gray-100 shadow-sm">
+    <div className="fixed inset-0 z-30 flex flex-col w-full h-full bg-white border-l border-gray-100 shadow-sm md:relative md:inset-auto md:z-auto md:w-[340px]">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100">
         <Search className="w-4 h-4 text-[#0068FF]" />

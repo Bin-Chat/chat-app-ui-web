@@ -1,13 +1,13 @@
 import axios, { AxiosError } from 'axios';
 import type { InternalAxiosRequestConfig } from 'axios';
-import { toast } from 'react-toastify';
 import type { AppStore } from '@/store';
-import { setAuth, logoutUser } from '@/store/slices/authSlice';
+import { setAuth, forceLogout, showSessionNotice } from '@/store/slices/authSlice';
 import { attachClientRateLimiter, attachRetry3s } from './apiFaultTolerance';
 
 // Extend Axios config để thêm flag `_retry`
 interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
+  _skipAuthRefresh?: boolean;
 }
 
 // Khai báo biến lưu store (inject sau)
@@ -39,6 +39,47 @@ function onRefreshed(success: boolean) {
   subscribers = [];
 }
 
+function getErrorMessage(data: unknown) {
+  const message = (data as { message?: unknown } | undefined)?.message;
+  if (Array.isArray(message)) return message.join(' ');
+  return typeof message === 'string' ? message : '';
+}
+
+function isRefreshRequest(url?: string) {
+  return Boolean(url?.includes('/api/auth/refresh'));
+}
+
+function isSessionInvalidatedMessage(message: string) {
+  const normalized = message.toLowerCase();
+  return (
+    normalized.includes('thiết bị khác') ||
+    normalized.includes('đăng nhập ở thiết bị khác') ||
+    normalized.includes('phiên đăng nhập đã hết hạn') ||
+    normalized.includes('phiên đăng nhập không hợp lệ') ||
+    normalized.includes('người dùng không tồn tại') ||
+    normalized.includes('tài khoản đã bị khóa')
+  );
+}
+
+function shouldTryRefresh(message: string) {
+  if (!message) return true;
+
+  const normalized = message.toLowerCase();
+  return (
+    normalized === 'unauthorized' ||
+    normalized.includes('jwt expired') ||
+    normalized.includes('token expired') ||
+    normalized.includes('access token')
+  );
+}
+
+function getSessionNotice(message: string) {
+  return {
+    reasonCode: message.toLowerCase().includes('bị khóa') ? 'account_locked' as const : 'session_expired' as const,
+    message: message || 'Phiên đăng nhập đã hết hiệu lực. Vui lòng đăng nhập lại.',
+  };
+}
+
 // Request interceptor
 authorizedAxios.interceptors.request.use(
   (config) => config,
@@ -53,25 +94,39 @@ authorizedAxios.interceptors.response.use(
 
     // ===== 401 Unauthorized =====
     if (error.response?.status === 401) {
-      // Nếu gọi profile → thử refresh token trước (xử lý access token hết hạn)
+      const errMsg = getErrorMessage(error.response?.data);
 
-      // Single Session: bị kick bởi thiết bị khác — thông báo và force logout ngay
-      const errMsg = (error.response?.data as any)?.message as string | undefined;
-      if (errMsg?.includes('thiết bị khác')) {
-        toast.error(errMsg, { toastId: 'session-kicked', autoClose: 6000 });
-        appStore?.dispatch(logoutUser());
+      // Một số request dùng để tự xác thực phiên sau login/page reload.
+      // Nếu các request này 401 thì nghĩa là cookie chưa được lưu/gửi đúng,
+      // gọi refresh tiếp sẽ chỉ tạo thêm request 401 và làm lỗi khó đọc hơn.
+      if (originalRequest?._skipAuthRefresh) {
+        appStore?.dispatch(forceLogout());
+        return Promise.reject(error);
+      }
+
+      // Single session / locked account / invalid session: access token có thể còn hạn,
+      // nhưng backend cố ý từ chối vì phiên đã bị vô hiệu. Không refresh trong case này.
+      if (isSessionInvalidatedMessage(errMsg)) {
+        appStore?.dispatch(showSessionNotice(getSessionNotice(errMsg)));
+        appStore?.dispatch(forceLogout());
         return Promise.reject(error);
       }
 
       // Nếu gọi refresh API → logout
-      if (originalRequest?.url?.includes('/api/v1/auth/refresh')) {
-        appStore?.dispatch(logoutUser()); // dùng thunk logout
+      if (isRefreshRequest(originalRequest?.url)) {
+        appStore?.dispatch(forceLogout());
+        return Promise.reject(error);
+      }
+
+      // Chỉ refresh khi lỗi 401 có khả năng do access token hết hạn/missing.
+      // Các lỗi 401 nghiệp vụ khác không nên refresh vì refresh cũng không giải quyết được.
+      if (!shouldTryRefresh(errMsg)) {
         return Promise.reject(error);
       }
 
       // Nếu đã retry rồi → logout
       if (originalRequest._retry) {
-        appStore?.dispatch(logoutUser());
+        appStore?.dispatch(forceLogout());
         return Promise.reject(error);
       }
 
@@ -99,7 +154,7 @@ authorizedAxios.interceptors.response.use(
             // Do NOT return Promise.reject here — nobody awaits refreshTokenPromise directly.
             // Callers are notified via onRefreshed(false) → subscribers queue.
             // Returning a rejection would create an unhandled promise rejection crash.
-            appStore?.dispatch(logoutUser());
+            appStore?.dispatch(forceLogout());
             onRefreshed(false);
           })
           .finally(() => {
@@ -129,7 +184,7 @@ authorizedAxios.interceptors.response.use(
             throw new Error('Token expired completely');
           })
           .catch((refreshError) => {
-            appStore?.dispatch(logoutUser());
+            appStore?.dispatch(forceLogout());
             return Promise.reject(refreshError);
           })
           .finally(() => {

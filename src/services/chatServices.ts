@@ -37,6 +37,22 @@ interface MessagesResponse {
   hasMore: boolean;
 }
 
+export interface ModeratedMessage extends Message {
+  moderationStatus: 'pending' | 'approved' | 'confirmed';
+  moderationCategories?: Record<string, boolean> | null;
+  moderationCategoryScores?: Record<string, number> | null;
+  moderationSeverity?: 'low' | 'medium' | 'high' | null;
+  moderationReason?: string | null;
+  moderatedAt?: string | null;
+}
+
+export interface ModerationStats {
+  pending: number;
+  approved: number;
+  confirmed: number;
+  total: number;
+}
+
 export const chatServices = {
   createConversation: (data: CreateConversationPayload) =>
     authorizedAxios.post<Conversation>('/api/chat/conversations', data).then((r) => r.data),
@@ -91,6 +107,24 @@ export const chatServices = {
 
   markAsRead: (conversationId: string) =>
     authorizedAxios.post(`/api/chat/conversations/${conversationId}/read`).then((r) => r.data),
+
+  getModerationQueue: (status: 'pending' | 'approved' | 'confirmed' = 'pending') =>
+    authorizedAxios
+      .get<ModeratedMessage[]>('/api/chat/admin/moderation', { params: { status, limit: 100 } })
+      .then((r) => r.data),
+
+  getModerationStats: () =>
+    authorizedAxios.get<ModerationStats>('/api/chat/admin/moderation/stats').then((r) => r.data),
+
+  approveModeratedMessage: (messageId: string) =>
+    authorizedAxios
+      .patch<{ success: boolean; status: string }>(`/api/chat/admin/moderation/${messageId}/approve`)
+      .then((r) => r.data),
+
+  confirmModeratedMessage: (messageId: string) =>
+    authorizedAxios
+      .patch<{ success: boolean; status: string }>(`/api/chat/admin/moderation/${messageId}/confirm`)
+      .then((r) => r.data),
 
   // ── Group Management ──────────────────────────────────────────────
 

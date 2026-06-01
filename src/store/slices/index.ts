@@ -10,8 +10,10 @@ export {
   setUser,
   setAuth,
   forceLogout,
+  showSessionNotice,
+  clearSessionNotice,
 } from './authSlice';
-export type { AuthState } from './authSlice';
+export type { AuthState, SessionNotice } from './authSlice';
 
 export { default as friendReducer } from './friendSlice';
 export {
@@ -55,6 +57,7 @@ export {
   clearChatError,
   socketMessageNew,
   socketMessageRevoked,
+  socketMessageRestored,
   socketConversationUpdated,
   socketReactionToggled,
   socketGroupMembersAdded,

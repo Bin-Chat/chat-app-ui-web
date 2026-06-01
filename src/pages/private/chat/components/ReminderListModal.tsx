@@ -150,7 +150,7 @@ export default function ReminderListModal({ conversationId, currentUserId, onClo
   return (
     <>
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-        <div className="bg-white text-gray-800 rounded-xl w-[480px] max-h-[80vh] flex flex-col shadow-2xl">
+        <div className="bg-white text-gray-800 rounded-xl w-[min(480px,calc(100vw-32px))] max-h-[80vh] flex flex-col shadow-2xl">
           {/* Header */}
           <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
             <div className="flex items-center gap-2">

@@ -3,6 +3,21 @@ import authorizedAxios from '@/utils/authorizedAxios';
 export interface AskResponse {
   question: string;
   answer: string;
+  citations: RagCitation[];
+  intent: string;
+  scoped: boolean;
+  cached: boolean;
+}
+
+export interface RagCitation {
+  id: string;
+  documentId: string | null;
+  title: string;
+  source: string;
+  collectionId: string | null;
+  chunkIndex: number;
+  score: number;
+  vectorScore: number;
 }
 
 export interface SearchResult {
@@ -48,6 +63,41 @@ export interface RewriteResponse {
 export interface IndexDocumentResponse {
   message: string;
   chunksIndexed: number;
+  collectionId?: string;
+  documentId: string;
+  documentVersion: string;
+  mode: RagIndexMode;
+  previousChunks: number;
+  totalChunks: number;
+}
+
+export type RagIndexMode = 'replace' | 'append';
+
+export interface IndexedDocumentChunk {
+  id: string;
+  chunkIndex: number;
+  chunkStart: number | null;
+  chunkEnd: number | null;
+  preview: string;
+  content: string;
+}
+
+export interface IndexedRagDocument {
+  documentId: string;
+  documentVersion: string | null;
+  title: string;
+  source: string;
+  collectionId: string | null;
+  indexedAt: string | null;
+  legacy: boolean;
+  chunkCount: number;
+  chunks: IndexedDocumentChunk[];
+}
+
+export interface IndexedRagDocumentList {
+  documents: IndexedRagDocument[];
+  totalDocuments: number;
+  totalChunks: number;
 }
 
 export interface MessageItem {
@@ -67,10 +117,23 @@ export const aiServices = {
   /** Index tài liệu vào Qdrant để RAG Bot sử dụng */
   indexDocument: (
     text: string,
-    meta?: { collectionId?: string; source?: string; title?: string },
+    meta?: { collectionId?: string; source?: string; title?: string; documentId?: string; mode?: RagIndexMode },
   ) =>
     authorizedAxios
       .post<IndexDocumentResponse>('/api/ai/documents/index', { text, ...meta })
+      .then((r) => r.data),
+
+  listDocumentsGrouped: (collectionId?: string) =>
+    authorizedAxios
+      .get<IndexedRagDocumentList>('/api/ai/documents/grouped', { params: { collectionId } })
+      .then((r) => r.data),
+
+  deleteDocumentChunk: (id: string) =>
+    authorizedAxios.delete<{ success: boolean }>(`/api/ai/documents/${id}`).then((r) => r.data),
+
+  deleteDocument: (documentId: string) =>
+    authorizedAxios
+      .delete<{ success: boolean; documentId: string }>(`/api/ai/documents/document/${encodeURIComponent(documentId)}`)
       .then((r) => r.data),
 
   /** Tìm kiếm ngữ nghĩa trong tin nhắn */

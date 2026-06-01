@@ -17,8 +17,9 @@ import {
 import { toast } from 'react-toastify';
 
 import { useAppDispatch } from '@/hooks/useRedux';
-import { setAuth, fetchProfile } from '@/store/slices';
+import { fetchProfile, showSessionNotice } from '@/store/slices';
 import { authServices } from '@/services/authServices';
+import { UserRole } from '@/types/user.type';
 import { getErrorMessage } from '@/utils/getErrorMessage';
 
 // ─── Schema validation ───────────────────────────────────────────────────────
@@ -53,13 +54,20 @@ export default function Login() {
         password: data.password,
         deviceId,
       });
-      dispatch(setAuth({ user: result.user, isLoggedIn: true }));
-      dispatch(fetchProfile()); // refresh full profile data
       if (result.deviceId) localStorage.setItem('deviceId', result.deviceId);
+      // Chỉ xem là đăng nhập thành công sau khi cookie vừa set được backend xác thực lại.
+      // Nếu setAuth ngay sau /login, các initializer sẽ bắn friends/chat trước khi biết
+      // accessToken cookie có thật sự dùng được hay không, gây hàng loạt request 401/refresh.
+      const user = await dispatch(fetchProfile(true)).unwrap();
       toast.success('Đăng nhập thành công!');
-      navigate('/');
+      navigate(user.role === UserRole.ADMIN ? '/admin' : '/', { replace: true });
     } catch (err) {
-      toast.error(getErrorMessage(err));
+      const message = getErrorMessage(err);
+      if (message.toLowerCase().includes('bị khóa')) {
+        dispatch(showSessionNotice({ reasonCode: 'account_locked', message }));
+      } else {
+        toast.error(message);
+      }
     } finally {
       setIsLoading(false);
     }

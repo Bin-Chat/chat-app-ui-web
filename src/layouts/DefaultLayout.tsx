@@ -29,7 +29,7 @@ function NavButton({
       end
       title={label}
       className={({ isActive }) =>
-        `w-full flex flex-col items-center gap-1 py-2.5 rounded-xl transition-all duration-150 select-none
+        `w-full flex flex-col items-center gap-1 py-2 rounded-xl transition-all duration-150 select-none
                 ${
                   isActive
                     ? 'bg-[#EBF3FF] text-[#0068FF]'
@@ -41,6 +41,46 @@ function NavButton({
         <>
           <Icon className="w-[22px] h-[22px]" strokeWidth={isActive ? 2.2 : 1.8} />
           <span className="text-[10px] font-medium leading-none">{label}</span>
+        </>
+      )}
+    </NavLink>
+  );
+}
+
+function MobileNavButton({
+  icon: Icon,
+  label,
+  to,
+}: {
+  icon: typeof MessageCircle;
+  label: string;
+  to: string;
+}) {
+  return (
+    <NavLink
+      to={to}
+      end
+      title={label}
+      className={({ isActive }) =>
+        `relative min-w-0 h-[56px] flex flex-col items-center justify-center gap-1 rounded-2xl
+         transition-all duration-200 select-none active:scale-[0.97]
+         ${isActive ? 'text-[#0068FF]' : 'text-gray-500 hover:text-gray-700'}`
+      }
+    >
+      {({ isActive }) => (
+        <>
+          <span
+            className={`w-9 h-8 rounded-2xl flex items-center justify-center transition-all duration-200
+              ${isActive ? 'bg-[#E8F2FF] shadow-[0_4px_12px_rgba(0,104,255,0.14)]' : 'bg-transparent'}`}
+          >
+            <Icon className="w-[20px] h-[20px]" strokeWidth={isActive ? 2.35 : 1.9} />
+          </span>
+          <span className="max-w-full whitespace-nowrap text-[10px] font-semibold leading-none tracking-normal">
+            {label}
+          </span>
+          {isActive && (
+            <span className="absolute bottom-0.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-[#0068FF]" />
+          )}
         </>
       )}
     </NavLink>
@@ -68,32 +108,53 @@ const DefaultLayout = () => {
   const avatarLetter = user?.fullName?.charAt(0)?.toUpperCase() ?? 'U';
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#F0F2F5]">
+    <div className="flex h-screen h-dvh overflow-hidden bg-[#F0F2F5] flex-col md:flex-row">
       {/* ─── Left icon sidebar ──────────────────────────────────── */}
-      <aside className="w-[68px] h-full bg-white border-r border-gray-100 flex flex-col items-center py-4 flex-shrink-0 z-10">
+      <aside className="order-2 md:order-1 w-full md:w-[68px] h-[76px] md:h-full bg-white/95 backdrop-blur-xl border-t md:border-t-0 md:border-r border-gray-100 flex flex-row md:flex-col items-center px-2 py-2 md:px-0 md:py-4 flex-shrink-0 z-10 shadow-[0_-10px_30px_rgba(15,23,42,0.06)] md:shadow-none">
         {/* Logo */}
-        <div className="w-11 h-11 bg-[#0068FF] rounded-[14px] flex items-center justify-center mb-5 shadow-[0_4px_12px_rgba(0,104,255,0.3)] flex-shrink-0">
+        <div className="hidden md:flex w-11 h-11 bg-[#0068FF] rounded-[14px] items-center justify-center mb-5 shadow-[0_4px_12px_rgba(0,104,255,0.3)] flex-shrink-0">
           <MessageCircle className="w-6 h-6 text-white" strokeWidth={2.5} />
         </div>
 
+        {/* Mobile bottom navigation */}
+        <nav className="grid md:hidden grid-cols-4 items-center gap-1 w-full max-w-[440px] mx-auto rounded-[24px] bg-white px-1.5 py-1 shadow-[0_8px_28px_rgba(15,23,42,0.08)] ring-1 ring-gray-100">
+          {NAV_ITEMS.map((item) => (
+            <MobileNavButton key={item.to} {...item} />
+          ))}
+          <MobileNavButton icon={Settings} label="Cài đặt" to="/settings" />
+          <button
+            onClick={() => setShowConfirm(true)}
+            title="Đăng xuất"
+            className="relative min-w-0 h-[56px] flex flex-col items-center justify-center gap-1 rounded-2xl
+              text-gray-500 transition-all duration-200 hover:text-red-500 active:scale-[0.97]"
+          >
+            <span className="w-9 h-8 rounded-2xl flex items-center justify-center hover:bg-red-50 transition-colors">
+              <LogOut className="w-[19px] h-[19px]" strokeWidth={1.9} />
+            </span>
+            <span className="max-w-full whitespace-nowrap text-[10px] font-semibold leading-none tracking-normal">
+              Thoát
+            </span>
+          </button>
+        </nav>
+
         {/* Navigation */}
-        <nav className="flex-1 flex flex-col items-center gap-1 w-full px-2">
+        <nav className="hidden md:flex flex-1 flex-col items-center justify-start gap-1 w-full px-2">
           {NAV_ITEMS.map((item) => (
             <NavButton key={item.to} {...item} />
           ))}
         </nav>
 
         {/* Bottom section */}
-        <div className="flex flex-col items-center gap-2 w-full px-2">
+        <div className="hidden md:flex flex-col items-center gap-2 w-full px-2">
           {/* Settings */}
           <NavButton icon={Settings} label="Cài đặt" to="/settings" />
 
-          <div className="w-8 h-px bg-gray-150 my-1" />
+          <div className="hidden md:block w-8 h-px bg-gray-150 my-1" />
 
           {/* User avatar */}
           <button
             title={user?.fullName ?? 'Hồ sơ'}
-            className="w-9 h-9 rounded-full bg-[#0068FF] flex items-center justify-center
+            className="hidden md:flex w-9 h-9 rounded-full bg-[#0068FF] items-center justify-center
                             hover:ring-2 hover:ring-[#0068FF]/40 transition-all overflow-hidden flex-shrink-0"
           >
             {user?.avatar ? (
@@ -118,7 +179,7 @@ const DefaultLayout = () => {
       </aside>
 
       {/* ─── Main area ──────────────────────────────────────────── */}
-      <main className="flex-1 min-w-0 flex overflow-hidden">
+      <main className="order-1 md:order-2 flex-1 min-w-0 min-h-0 flex overflow-hidden">
         <Outlet />
       </main>
 
@@ -143,7 +204,7 @@ const DefaultLayout = () => {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.94, y: 10 }}
                 transition={{ duration: 0.18, ease: 'easeOut' }}
-                className="pointer-events-auto w-[340px] bg-white rounded-2xl
+                className="pointer-events-auto w-[min(340px,calc(100vw-32px))] bg-white rounded-2xl
                                     shadow-[0_24px_64px_rgba(0,0,0,0.14)] p-6"
               >
                 {/* Icon */}

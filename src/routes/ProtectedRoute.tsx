@@ -11,16 +11,16 @@ interface Props {
 }
 
 const ProtectedRoute = ({ children, role }: Props) => {
-  const { user, loading } = useAppSelector((state) => state.auth);
+  const { user, loading, error } = useAppSelector((state) => state.auth);
   const dispatch = useAppDispatch();
 
   // Check if user is logged in but user data is missing (after page refresh)
   useEffect(() => {
     const hasLoginFlag = localStorage.getItem("userLoggedIn") === "true";
-    if (hasLoginFlag && !user && !loading) {
-      dispatch(fetchProfile());
+    if (hasLoginFlag && !user && !loading && !error) {
+      dispatch(fetchProfile(undefined));
     }
-  }, [dispatch, user, loading]);
+  }, [dispatch, user, loading, error]);
 
   // Check authentication with localStorage flag and server validation
   const hasLoginFlag = localStorage.getItem("userLoggedIn") === "true";
@@ -30,8 +30,9 @@ const ProtectedRoute = ({ children, role }: Props) => {
     return <Navigate to="/login" replace />;
   }
 
-  // If has login flag but no user data and currently loading, show loading
-  if (hasLoginFlag && !user && loading) {
+  // If has login flag but no user data, wait for profile verification.
+  // This avoids redirecting to /login before fetchProfile() has a chance to run.
+  if (hasLoginFlag && !user && (loading || !error)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-accent/5">
         <div className="text-center space-y-4">
@@ -42,8 +43,8 @@ const ProtectedRoute = ({ children, role }: Props) => {
     );
   }
 
-  // If has login flag but no user data and not loading (fetch failed), redirect to login
-  if (hasLoginFlag && !user && !loading) {
+  // If verification failed, redirect to login
+  if (hasLoginFlag && !user && error) {
     return <Navigate to="/login" replace />;
   }
 

@@ -108,7 +108,7 @@ export default function CreateReminderModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white text-gray-800 rounded-xl w-[440px] shadow-2xl overflow-hidden">
+      <div className="bg-white text-gray-800 rounded-xl w-[min(440px,calc(100vw-32px))] shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <div className="flex items-center gap-2">

@@ -1,6 +1,7 @@
 import type { JSX } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAppSelector } from "@/hooks/useRedux";
+import { UserRole } from "@/types/user.type";
 
 interface Props {
   children?: JSX.Element;
@@ -11,9 +12,9 @@ const AuthRoute = ({ children }: Props) => {
   const { user } = useAppSelector((state) => state.auth);
   const hasLoginFlag = localStorage.getItem("userLoggedIn") === "true";
 
-  // If user is logged in, redirect to home
+  // If user is logged in, redirect to the correct landing page.
   if (user && hasLoginFlag) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={user.role === UserRole.ADMIN ? "/admin" : "/"} replace />;
   }
 
   // Return children if provided, otherwise use Outlet for nested routes

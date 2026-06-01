@@ -30,10 +30,18 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex w-full h-full overflow-hidden">
-      <ConversationList activeId={conversationId ?? null} onSelect={handleSelectConversation} />
-      <div className="flex-1 min-w-0 flex flex-col">
-        {conversationId ? <ChatRoom conversationId={conversationId} /> : <ChatWelcome />}
+    <div className="flex w-full h-full min-h-0 overflow-hidden">
+      <ConversationList
+        activeId={conversationId ?? null}
+        onSelect={handleSelectConversation}
+        className={conversationId ? 'hidden md:flex' : 'flex'}
+      />
+      <div className={`${conversationId ? 'flex' : 'hidden md:flex'} flex-1 min-w-0 min-h-0 flex-col`}>
+        {conversationId ? (
+          <ChatRoom conversationId={conversationId} onBack={() => navigate('/')} />
+        ) : (
+          <ChatWelcome />
+        )}
       </div>
     </div>
   );

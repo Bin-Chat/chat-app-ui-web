@@ -558,16 +558,16 @@ export default function SettingsPage() {
   const user = useAppSelector((s) => s.auth.user);
 
   return (
-    <div className="flex-1 flex overflow-hidden bg-[#F0F2F5]">
+    <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden bg-[#F0F2F5]">
       {/* ── Left sidebar ── */}
-      <div className="w-[280px] flex-shrink-0 bg-white border-r border-gray-100 flex flex-col">
+      <div className="w-full md:w-[280px] flex-shrink-0 bg-white border-b md:border-b-0 md:border-r border-gray-100 flex flex-col max-h-[42vh] md:max-h-none">
         {/* Sidebar header */}
-        <div className="px-5 py-4 border-b border-gray-100">
+        <div className="px-4 sm:px-5 py-3 md:py-4 border-b border-gray-100">
           <h1 className="text-[16px] font-semibold text-gray-900">Cài đặt</h1>
         </div>
 
         {/* User identity card */}
-        <div className="px-4 py-4 border-b border-gray-100">
+        <div className="px-4 py-3 md:py-4 border-b border-gray-100">
           <div className="flex items-center gap-3">
             <UserAvatar src={user?.avatar} name={user?.fullName} size={44} />
             <div className="min-w-0">
@@ -580,13 +580,13 @@ export default function SettingsPage() {
         </div>
 
         {/* Nav items */}
-        <nav className="flex-1 overflow-y-auto py-2">
+        <nav className="flex-1 min-h-0 overflow-x-auto md:overflow-x-hidden md:overflow-y-auto py-2 flex md:block">
           {NAV_ITEMS.map(({ id, label, subtitle, icon: Icon }) => (
             <button
               key={id}
               onClick={() => setActiveSection(id)}
               className={cn(
-                'w-full flex items-center gap-3 px-4 py-3 text-left transition-colors group',
+                'min-w-[220px] md:min-w-0 md:w-full flex items-center gap-3 px-4 py-3 text-left transition-colors group',
                 activeSection === id
                   ? 'bg-[#0068FF]/8 text-[#0068FF]'
                   : 'text-gray-700 hover:bg-gray-50'
@@ -625,10 +625,10 @@ export default function SettingsPage() {
       </div>
 
       {/* ── Right content ── */}
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-lg mx-auto px-8 py-8">
+      <div className="flex-1 min-h-0 overflow-y-auto">
+        <div className="max-w-lg mx-auto px-4 sm:px-6 md:px-8 py-5 md:py-8">
           {/* Section header */}
-          <div className="mb-7">
+          <div className="mb-5 md:mb-7">
             <h2 className="text-[20px] font-semibold text-gray-900">
               {SECTION_TITLES[activeSection]}
             </h2>
@@ -636,7 +636,7 @@ export default function SettingsPage() {
           </div>
 
           {/* Section content */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6">
             {activeSection === 'profile' && <ProfileSection />}
             {activeSection === 'security' && <SecuritySection />}
             {activeSection === 'notifications' && <NotificationsSection />}

@@ -26,7 +26,7 @@ export default function DirectInfoPanel({
   const [showNoteList, setShowNoteList] = useState(false);
 
   return (
-    <div className="w-[320px] h-full bg-white border-l border-gray-100 flex flex-col flex-shrink-0">
+    <div className="fixed inset-0 z-30 w-full h-full bg-white border-l border-gray-100 flex flex-col flex-shrink-0 md:relative md:inset-auto md:z-auto md:w-[320px]">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
         <h3 className="text-[15px] font-bold text-gray-800">Thông tin hội thoại</h3>

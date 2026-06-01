@@ -589,7 +589,7 @@ export default function MessageInput({
   };
 
   return (
-    <div className="border-t border-gray-100 bg-white px-4 py-3 flex-shrink-0">
+    <div className="border-t border-gray-100 bg-white px-2.5 sm:px-4 py-2.5 sm:py-3 flex-shrink-0">
       {/* Edit mode banner */}
       {editingMessage && (
         <div className="flex items-center gap-2 mb-2 px-3 py-2 bg-blue-50 rounded-xl border-l-4 border-[#0068FF]">
@@ -686,9 +686,9 @@ export default function MessageInput({
       )}
 
       {/* Input row */}
-      <div className="flex items-end gap-2">
+      <div className="flex items-end gap-1.5 sm:gap-2">
         {/* Emoji trigger */}
-        <div className="relative">
+        <div className="relative hidden sm:block">
           <button
             onClick={() => {
               setShowEmoji((v) => !v);
@@ -712,14 +712,14 @@ export default function MessageInput({
               setShowFilePicker((v) => !v);
               setShowEmoji(false);
             }}
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-[#0068FF] transition-colors"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center text-gray-400 hover:bg-gray-100 hover:text-[#0068FF] transition-colors"
           >
             <Paperclip className="w-5 h-5" />
           </button>
           {showFilePicker && (
             <>
               <div className="fixed inset-0 z-30" onClick={() => setShowFilePicker(false)} />
-              <div className="absolute bottom-full mb-2 left-0 z-40 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden w-[180px]">
+              <div className="absolute bottom-full mb-2 left-0 z-40 bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden w-[180px] max-w-[calc(100vw-24px)]">
                 <button
                   onClick={() => {
                     fileInputRef.current?.setAttribute('accept', 'image/*');
@@ -851,7 +851,7 @@ export default function MessageInput({
             onKeyDown={handleKeyDown}
             placeholder="Nhập tin nhắn..."
             rows={1}
-            className={`flex-1 resize-none text-[13px] py-2.5 px-3 bg-gray-50 border rounded-xl outline-none transition-colors max-h-[120px] leading-relaxed ${
+            className={`flex-1 min-w-0 resize-none text-[13px] py-2 sm:py-2.5 px-3 bg-gray-50 border rounded-xl outline-none transition-colors max-h-[120px] leading-relaxed ${
               hasBotMention
                 ? 'border-[#0068FF]/30 bg-[#0068FF]/[0.03] focus:border-[#0068FF]/40'
                 : 'border-gray-100 focus:border-[#0068FF]/40 focus:bg-white'
@@ -863,7 +863,7 @@ export default function MessageInput({
         <button
           onClick={isRecording ? stopRecording : startRecording}
           title={isRecording ? 'Dừng ghi âm' : 'Ghi âm tin nhắn thoại'}
-          className={`w-9 h-9 rounded-lg flex items-center justify-center transition-colors flex-shrink-0 ${
+          className={`w-8 h-8 sm:w-9 sm:h-9 rounded-lg flex items-center justify-center transition-colors flex-shrink-0 ${
             isRecording
               ? 'bg-red-500 text-white hover:bg-red-600'
               : 'text-gray-400 hover:bg-gray-100 hover:text-[#0068FF]'
@@ -881,7 +881,7 @@ export default function MessageInput({
           <button
             onClick={() => setShowRewrite(true)}
             title="Viết lại bằng AI"
-            className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-400 hover:bg-violet-50 hover:text-violet-500 transition-colors flex-shrink-0"
+            className="hidden sm:flex w-9 h-9 rounded-lg items-center justify-center text-gray-400 hover:bg-violet-50 hover:text-violet-500 transition-colors flex-shrink-0"
           >
             <Wand2 className="w-4 h-4" />
           </button>
@@ -891,7 +891,7 @@ export default function MessageInput({
         <button
           onClick={handleSend}
           disabled={sending || (!text.trim() && attachments.length === 0)}
-          className="w-9 h-9 rounded-lg bg-[#0068FF] flex items-center justify-center text-white hover:bg-[#0054CC] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+          className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-[#0068FF] flex items-center justify-center text-white hover:bg-[#0054CC] disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
         >
           <Send className="w-4 h-4" />
         </button>

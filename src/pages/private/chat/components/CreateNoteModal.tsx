@@ -53,7 +53,7 @@ export default function CreateNoteModal({
   return (
     <>
       <div className="fixed inset-0 bg-black/50 z-[60]" onClick={onClose} />
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-xl shadow-2xl w-[440px] flex flex-col overflow-hidden">
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-xl shadow-2xl w-[min(440px,calc(100vw-32px))] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
           <h2 className="text-[15px] font-semibold text-gray-800">

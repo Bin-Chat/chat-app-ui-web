@@ -132,7 +132,7 @@ export default function NoteListModal({ conversationId, currentUserId, isAdmin, 
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-50" onClick={onClose} />
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-xl w-[480px] max-h-[80vh] flex flex-col overflow-hidden">
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-2xl shadow-xl w-[min(480px,calc(100vw-32px))] max-h-[80vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
           <h2 className="text-[16px] font-bold text-gray-800 flex items-center gap-2">
@@ -275,7 +275,7 @@ export default function NoteListModal({ conversationId, currentUserId, isAdmin, 
             className="fixed inset-0 bg-black/40 z-[70]"
             onClick={() => setConfirmDelete(null)}
           />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] bg-white rounded-2xl p-5 w-[320px] shadow-xl">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[70] bg-white rounded-2xl p-5 w-[min(320px,calc(100vw-32px))] shadow-xl">
             <h3 className="text-[15px] font-semibold text-gray-800 mb-1.5">Xóa ghi chú?</h3>
             <p className="text-[13px] text-gray-500 mb-5 leading-relaxed">
               Ghi chú này sẽ bị xóa vĩnh viễn và không thể khôi phục.

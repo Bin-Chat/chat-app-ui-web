@@ -299,7 +299,7 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
 
   return (
     <>
-      <div className="w-[320px] h-full bg-white border-l border-gray-100 flex flex-col flex-shrink-0">
+      <div className="fixed inset-0 z-30 w-full h-full bg-white border-l border-gray-100 flex flex-col flex-shrink-0 md:relative md:inset-auto md:z-auto md:w-[320px]">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
           <h3 className="text-[15px] font-bold text-gray-800">Thông tin nhóm</h3>
@@ -764,7 +764,7 @@ export default function GroupInfoPanel({ conversation, onClose }: GroupInfoPanel
       <Dialog.Root open={!!confirmAction} onOpenChange={(open) => !open && setConfirmAction(null)}>
         <Dialog.Portal>
           <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl p-5 w-[320px] shadow-xl z-50 focus:outline-none">
+          <Dialog.Content className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl p-5 w-[min(320px,calc(100vw-32px))] shadow-xl z-50 focus:outline-none">
             <Dialog.Title className="text-[15px] font-semibold text-gray-800 mb-1.5">
               {confirmAction?.type === 'remove' && 'Xóa thành viên'}
               {confirmAction?.type === 'leave' && 'Rời nhóm'}
@@ -906,7 +906,7 @@ function AddMemberModal({
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-[60]" onClick={onClose} />
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-2xl shadow-xl w-[380px] max-h-[70vh] flex flex-col overflow-hidden">
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-2xl shadow-xl w-[min(380px,calc(100vw-32px))] max-h-[70vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
           <h3 className="text-[15px] font-bold text-gray-800">Thêm thành viên</h3>
           <button
@@ -1075,7 +1075,7 @@ function EditGroupModal({
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-[60]" onClick={onClose} />
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-2xl shadow-xl w-[380px] flex flex-col overflow-hidden">
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-2xl shadow-xl w-[min(380px,calc(100vw-32px))] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
           <h3 className="text-[15px] font-bold text-gray-800">Chỉnh sửa nhóm</h3>
           <button
@@ -1180,7 +1180,7 @@ function TransferAndLeaveModal({
   return (
     <>
       <div className="fixed inset-0 bg-black/40 z-[60]" onClick={onClose} />
-      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-2xl shadow-xl w-[380px] max-h-[60vh] flex flex-col overflow-hidden">
+      <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[60] bg-white rounded-2xl shadow-xl w-[min(380px,calc(100vw-32px))] max-h-[60vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
           <h3 className="text-[15px] font-bold text-gray-800">Chọn chủ nhóm mới</h3>
           <button

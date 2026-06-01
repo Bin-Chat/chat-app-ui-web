@@ -8,13 +8,15 @@ import { appSocket } from '@/services/appSocket';
 import UserAvatar from '@/components/UserAvatar';
 import CreateGroupModal from './CreateGroupModal';
 import type { Conversation } from '@/types/chat.type';
+import { cn } from '@/lib/utils';
 
 interface ConversationListProps {
   activeId: string | null;
   onSelect: (id: string) => void;
+  className?: string;
 }
 
-export default function ConversationList({ activeId, onSelect }: ConversationListProps) {
+export default function ConversationList({ activeId, onSelect, className }: ConversationListProps) {
   const conversations = useAppSelector((s) => s.chat.conversations);
   const loadingConversations = useAppSelector((s) => s.chat.loadingConversations);
   const currentUser = useAppSelector((s) => s.auth.user);
@@ -76,7 +78,12 @@ export default function ConversationList({ activeId, onSelect }: ConversationLis
 
   return (
     <>
-      <aside className="w-[320px] h-full bg-white border-r border-gray-100 flex flex-col flex-shrink-0">
+      <aside
+        className={cn(
+          'w-full md:w-[300px] lg:w-[320px] h-full bg-white border-r border-gray-100 flex flex-col flex-shrink-0',
+          className
+        )}
+      >
         {/* Header */}
         <div className="px-4 pt-4 pb-2">
           <div className="flex items-center justify-between mb-3">

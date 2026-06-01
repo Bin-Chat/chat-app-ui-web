@@ -40,6 +40,12 @@ export interface Message {
   deletedFor: string[];
   revokedAt: string | null;
   revokedBy?: string | null;
+  moderationStatus?: 'pending' | 'approved' | 'confirmed' | null;
+  moderationCategories?: Record<string, boolean> | null;
+  moderationCategoryScores?: Record<string, number> | null;
+  moderationSeverity?: 'low' | 'medium' | 'high' | null;
+  moderationReason?: string | null;
+  moderatedAt?: string | null;
   forwardedFrom: ForwardInfo | null;
   replyTo: ReplyInfo | null;
   reactions: Reaction[];
