@@ -93,7 +93,8 @@ function VideoTile({
 
   useEffect(() => {
     if (!ref.current || !stream) return;
-    ref.current.srcObject = stream;
+    const video = ref.current;
+    video.srcObject = stream;
 
     const checkVideo = () => {
       const alive = stream.getVideoTracks().some((t) => t.enabled && t.readyState === 'live');
@@ -114,14 +115,14 @@ function VideoTile({
         setObjectFit(forceContain || isWide ? 'contain' : 'cover');
       }
     };
-    ref.current.addEventListener('loadedmetadata', handleMetadata);
+    video.addEventListener('loadedmetadata', handleMetadata);
 
     stream.addEventListener('addtrack', checkVideo);
     stream.addEventListener('removetrack', checkVideo);
     const tracks = stream.getVideoTracks();
     tracks.forEach((t) => t.addEventListener('ended', checkVideo));
     return () => {
-      ref.current?.removeEventListener('loadedmetadata', handleMetadata);
+      video.removeEventListener('loadedmetadata', handleMetadata);
       stream.removeEventListener('addtrack', checkVideo);
       stream.removeEventListener('removetrack', checkVideo);
       tracks.forEach((t) => t.removeEventListener('ended', checkVideo));
@@ -168,6 +169,38 @@ function VideoTile({
 }
 
 // ── Participant Sidebar ────────────────────────────────────────────────────────
+function RemoteAudioPlayer({ stream }: { stream: MediaStream }) {
+  const ref = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    const audio = ref.current;
+    if (!audio || !stream) return;
+
+    audio.srcObject = stream;
+    audio.muted = false;
+    audio.volume = 1;
+
+    const play = () => {
+      void audio.play().catch((err) => {
+        console.warn('[CallRoom] remote audio autoplay blocked', err);
+      });
+    };
+
+    play();
+    audio.addEventListener('loadedmetadata', play);
+    stream.addEventListener('addtrack', play);
+
+    return () => {
+      audio.removeEventListener('loadedmetadata', play);
+      stream.removeEventListener('addtrack', play);
+      audio.pause();
+      audio.srcObject = null;
+    };
+  }, [stream]);
+
+  return <audio ref={ref} autoPlay className="hidden" />;
+}
+
 function ParticipantSidebar({
   participantIds,
   currentUserId,
@@ -538,6 +571,10 @@ export default function CallRoom() {
   // ── Render ────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-[9998] flex flex-col bg-[#111827] text-white">
+      {remoteEntries.map(([uid, stream]) => (
+        <RemoteAudioPlayer key={`audio-${uid}`} stream={stream} />
+      ))}
+
       {/* Top bar */}
       <div className="flex items-center justify-between px-5 py-3 flex-shrink-0 border-b border-white/5">
         <div className="flex items-center gap-2">
@@ -614,6 +651,7 @@ export default function CallRoom() {
                   <VideoTile
                     stream={remoteEntries[0][1]}
                     label={nameForId(remoteEntries[0][0])}
+                    muted
                     forceContain={screenSharingUsers[remoteEntries[0][0]] ?? false}
                     className="w-full h-full"
                   />
@@ -804,6 +842,7 @@ function GroupLayout({
           <VideoTile
             stream={fsEntry[1]}
             label={nameForId(fsEntry[0])}
+            muted
             forceContain={screenSharingUsers[fsEntry[0]] ?? false}
             className="w-full h-full"
           />
@@ -828,6 +867,7 @@ function GroupLayout({
             <VideoTile
               stream={stream}
               label={nameForId(uid)}
+              muted
               forceContain={screenSharingUsers[uid] ?? false}
               className="h-full"
             />
@@ -859,6 +899,7 @@ function GroupLayout({
             <VideoTile
               stream={spotlight[1]}
               label={nameForId(spotlight[0])}
+              muted
               forceContain={screenSharingUsers[spotlight[0]] ?? false}
               className="w-full h-full"
             />
@@ -886,6 +927,7 @@ function GroupLayout({
             <VideoTile
               stream={stream}
               label={nameForId(uid)}
+              muted
               forceContain={screenSharingUsers[uid] ?? false}
               className="h-full"
             />
