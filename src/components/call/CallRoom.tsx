@@ -96,6 +96,12 @@ function VideoTile({
     const video = ref.current;
     video.srcObject = stream;
 
+    const play = () => {
+      void video.play().catch((err) => {
+        console.warn('[CallRoom] video autoplay blocked', err);
+      });
+    };
+
     const checkVideo = () => {
       const alive = stream.getVideoTracks().some((t) => t.enabled && t.readyState === 'live');
       setHasVideo(alive);
@@ -116,6 +122,8 @@ function VideoTile({
       }
     };
     video.addEventListener('loadedmetadata', handleMetadata);
+    video.addEventListener('loadedmetadata', play);
+    play();
 
     stream.addEventListener('addtrack', checkVideo);
     stream.addEventListener('removetrack', checkVideo);
@@ -123,6 +131,7 @@ function VideoTile({
     tracks.forEach((t) => t.addEventListener('ended', checkVideo));
     return () => {
       video.removeEventListener('loadedmetadata', handleMetadata);
+      video.removeEventListener('loadedmetadata', play);
       stream.removeEventListener('addtrack', checkVideo);
       stream.removeEventListener('removetrack', checkVideo);
       tracks.forEach((t) => t.removeEventListener('ended', checkVideo));
@@ -345,6 +354,7 @@ export default function CallRoom() {
 
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const acceptedRef = useRef(false);
 
   // isScreenSharing is managed by Redux via useWebRTC dispatch — no local state needed
   const isScreenSharing = call.isScreenSharing;
@@ -376,6 +386,15 @@ export default function CallRoom() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (acceptedRef.current) return;
+    if (!localStream || !call.callId || !currentUser?.id) return;
+    if (call.status !== 'ringing' || call.initiatorId === currentUser.id) return;
+
+    acceptedRef.current = true;
+    appSocket.emit('call:accept', { callId: call.callId });
+  }, [call.callId, call.initiatorId, call.status, currentUser?.id, localStream]);
 
   // ── Timer ────────────────────────────────────────────────────────────
   useEffect(() => {

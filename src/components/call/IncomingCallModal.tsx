@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { Phone, PhoneOff, PhoneCall, Video } from 'lucide-react';
 import { useAppDispatch, useAppSelector } from '@/hooks/useRedux';
 import { clearIncomingCall, acceptCall, endCall } from '@/store/slices';
 import { appSocket } from '@/services/appSocket';
 import UserAvatar from '@/components/UserAvatar';
+import { callRingtone } from '@/services/callRingtone';
 
 /**
  * Shown as a floating banner when there is an incoming call.
@@ -13,52 +14,25 @@ export default function IncomingCallModal() {
   const dispatch = useAppDispatch();
   const incoming = useAppSelector((s) => s.call.incomingCall);
   const currentUser = useAppSelector((s) => s.auth.user);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const incomingCallId = incoming?.callId;
 
   // Play ringtone while modal is visible
   useEffect(() => {
-    if (!incoming) {
-      audioRef.current?.pause();
+    if (!incomingCallId) {
+      callRingtone.stop();
       return;
     }
-    // Use a simple oscillator-based beep via AudioContext as fallback
-    // (no external audio file required)
-    let ctx: AudioContext | null = null;
-    let osc: OscillatorNode | null = null;
-    let gain: GainNode | null = null;
-    let stopped = false;
-
-    const ring = () => {
-      if (stopped) return;
-      ctx = new AudioContext();
-      osc = ctx.createOscillator();
-      gain = ctx.createGain();
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.frequency.value = 480;
-      gain.gain.setValueAtTime(0.2, ctx.currentTime);
-      osc.start();
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.6);
-      osc.stop(ctx.currentTime + 0.6);
-      // Repeat every 1.5 s
-      setTimeout(() => {
-        ctx?.close();
-        ring();
-      }, 1500);
-    };
-    ring();
+    callRingtone.start();
 
     return () => {
-      stopped = true;
-      osc?.stop?.();
-      ctx?.close?.();
+      callRingtone.stop();
     };
-  }, [incoming?.callId]);
+  }, [incomingCallId]);
 
   if (!incoming) return null;
 
   const handleAccept = () => {
-    appSocket.emit('call:accept', { callId: incoming.callId });
+    callRingtone.stop();
     dispatch(
       acceptCall({
         callId: incoming.callId,
@@ -71,6 +45,7 @@ export default function IncomingCallModal() {
   };
 
   const handleDecline = () => {
+    callRingtone.stop();
     appSocket.emit('call:reject', { callId: incoming.callId });
     dispatch(clearIncomingCall());
     dispatch(endCall());

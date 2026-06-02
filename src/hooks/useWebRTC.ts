@@ -212,6 +212,17 @@ export function useWebRTC() {
    */
   const initiateOffer = useCallback(
     async (remoteUserId: string) => {
+      if (localStreamReady.current && !localStreamReady.current.resolved) {
+        await Promise.race([
+          localStreamReady.current.promise,
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('stream timeout')), 10_000)
+          ),
+        ]).catch(() =>
+          console.warn('[useWebRTC] local stream not ready in 10s - creating offer without media')
+        );
+      }
+
       const pc = createPeerConnection(remoteUserId);
       const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
       await pc.setLocalDescription(offer);
@@ -258,7 +269,7 @@ export function useWebRTC() {
               setTimeout(() => reject(new Error('stream timeout')), 10_000)
             ),
           ]).catch(() =>
-            console.warn('[useWebRTC] local stream not ready in 10s — answering without media')
+            console.warn('[useWebRTC] local stream not ready in 10s - answering without media')
           );
         }
 

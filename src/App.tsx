@@ -2,6 +2,7 @@ import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
+import { useEffect } from 'react';
 import { useAppSelector } from '@/hooks/useRedux';
 
 import { AppInitializer } from './providers/AppInitializer';
@@ -13,6 +14,7 @@ import ChatPage from '@/pages/private/chat/ChatPage';
 import IncomingCallModal from './components/call/IncomingCallModal';
 import CallRoom from './components/call/CallRoom';
 import SessionTerminationModal from './components/SessionTerminationModal';
+import { callRingtone } from './services/callRingtone';
 
 // Layouts
 import EmptyLayout from '@/layouts/EmptyLayout';
@@ -129,6 +131,8 @@ const router = createBrowserRouter([
 
 function App() {
   const callStatus = useAppSelector((s: any) => s.call?.status ?? 'idle');
+
+  useEffect(() => callRingtone.installUnlockListeners(), []);
 
   return (
     <TooltipPrimitive.Provider delayDuration={400}>
