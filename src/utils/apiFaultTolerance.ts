@@ -15,11 +15,27 @@ function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function isUploadEndpoint(url: string) {
+  return url.includes('/api/uploads/presign') || url.includes('/api/uploads/finalize');
+}
+
+function stableStringify(value: unknown): string {
+  if (!value || typeof value !== 'object') return String(value ?? '');
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort()
+    .map((key) => `${key}:${stableStringify(record[key])}`)
+    .join(',')}}`;
+}
+
 function getRequestKey(config: InternalAxiosRequestConfig) {
   const method = (config.method ?? 'get').toUpperCase();
   const url = config.url ?? '';
   const params = config.params ? JSON.stringify(config.params) : '';
-  return `${method}:${url}:${params}`;
+  const body = method === 'GET' || method === 'HEAD' ? '' : stableStringify(config.data).slice(0, 1000);
+  return `${method}:${url}:${params}:${body}`;
 }
 
 function createClientRateLimitError(config: InternalAxiosRequestConfig) {
@@ -50,6 +66,7 @@ export function attachClientRateLimiter(instance: AxiosInstance, windowMs = DEFA
   instance.interceptors.request.use((config) => {
     const requestConfig = config as FaultTolerantRequestConfig;
     if (requestConfig._skipClientRateLimit) return config;
+    if (isUploadEndpoint(config.url ?? '')) return config;
 
     const key = getRequestKey(config);
     const now = Date.now();
