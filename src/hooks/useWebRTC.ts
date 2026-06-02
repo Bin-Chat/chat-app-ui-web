@@ -179,32 +179,59 @@ export function useWebRTC() {
     return stream;
   }, []);
 
+  const setCameraEnabled = useCallback(async (enabled: boolean) => {
+    if (!enabled) {
+      localStreamRef.current?.getVideoTracks().forEach((track) => {
+        track.enabled = false;
+      });
+      if (localStreamRef.current) {
+        setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+      }
+      return;
+    }
+
+    let videoTrack = localStreamRef.current
+      ?.getVideoTracks()
+      .find((track) => track.readyState === 'live');
+
+    if (!videoTrack) {
+      const videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      videoTrack = videoStream.getVideoTracks()[0];
+      if (!videoTrack) return;
+
+      if (localStreamRef.current) {
+        localStreamRef.current.addTrack(videoTrack);
+      } else {
+        localStreamRef.current = videoStream;
+      }
+    }
+
+    videoTrack.enabled = true;
+
+    await Promise.all(
+      Array.from(pcMap.current.values()).map(async (pc) => {
+        const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+        if (sender) {
+          await sender.replaceTrack(videoTrack);
+        } else {
+          pc.addTrack(videoTrack!, localStreamRef.current!);
+        }
+      })
+    );
+
+    if (localStreamRef.current) {
+      setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
+    }
+  }, []);
+
   /**
    * Acquire a video track and add it to all active peer connections.
    * Triggers renegotiation via onnegotiationneeded.
    * Used when switching from an audio call to video mid-call.
    */
   const enableVideoTrack = useCallback(async () => {
-    const videoStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-    const videoTrack = videoStream.getVideoTracks()[0];
-    if (!videoTrack) return;
-
-    if (localStreamRef.current) {
-      localStreamRef.current.addTrack(videoTrack);
-    } else {
-      localStreamRef.current = videoStream;
-    }
-    // Trigger a state update with the updated track list so the local preview refreshes
-    setLocalStream(new MediaStream(localStreamRef.current.getTracks()));
-
-    // Add to all existing peer connections (onnegotiationneeded will renegotiate)
-    pcMap.current.forEach((pc) => {
-      const alreadyHasVideo = pc.getSenders().some((s) => s.track?.kind === 'video');
-      if (!alreadyHasVideo) {
-        pc.addTrack(videoTrack, localStreamRef.current!);
-      }
-    });
-  }, []);
+    await setCameraEnabled(true);
+  }, [setCameraEnabled]);
 
   /**
    * Caller-side: create an offer and send it to a specific remote participant.
@@ -408,6 +435,7 @@ export function useWebRTC() {
     screenSharingUsers,
     getLocalStream,
     enableVideoTrack,
+    setCameraEnabled,
     initiateOffer,
     startScreenShare,
     stopScreenShare,

@@ -364,7 +364,7 @@ export default function CallRoom() {
     remoteStreams,
     screenSharingUsers,
     getLocalStream,
-    enableVideoTrack,
+    setCameraEnabled,
     initiateOffer,
     startScreenShare,
     stopScreenShare,
@@ -500,21 +500,14 @@ export default function CallRoom() {
 
   // Video toggle: supports switching audio→video mid-call
   const handleToggleVideo = useCallback(async () => {
-    if (call.isVideoOff) {
-      const hasLiveVideo =
-        localStream?.getVideoTracks().some((t) => t.readyState === 'live') ?? false;
-      if (!hasLiveVideo) {
-        try {
-          await enableVideoTrack();
-        } catch {
-          return;
-        }
-      }
-      dispatch(setVideoOff(false));
-    } else {
-      dispatch(setVideoOff(true));
+    const nextEnabled = call.isVideoOff;
+    try {
+      await setCameraEnabled(nextEnabled);
+      dispatch(setVideoOff(!nextEnabled));
+    } catch (err) {
+      console.warn('[CallRoom] toggle camera failed', err);
     }
-  }, [call.isVideoOff, localStream, enableVideoTrack, dispatch]);
+  }, [call.isVideoOff, setCameraEnabled, dispatch]);
 
   // Screen share — Redux isScreenSharing is updated by the hook automatically
   const handleToggleScreen = useCallback(async () => {
