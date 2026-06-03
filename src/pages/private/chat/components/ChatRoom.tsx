@@ -539,7 +539,7 @@ export default function ChatRoom({ conversationId, onBack }: ChatRoomProps) {
             onClick={() => setShowTaskPanel(true)}
             title="Công việc nhóm"
             className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors flex-shrink-0 ${
-              showTaskPanel ? 'bg-emerald-50 text-emerald-600' : 'text-gray-500 hover:bg-gray-100'
+              showTaskPanel ? 'bg-blue-50 text-[#0068FF]' : 'text-gray-500 hover:bg-gray-100'
             }`}
           >
             <CheckSquare className="w-5 h-5" />

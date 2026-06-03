@@ -12,10 +12,10 @@ export const taskServices = {
       .post<Task>(`/api/chat/conversations/${conversationId}/tasks`, payload)
       .then((r) => r.data),
 
-  getTasks: (conversationId: string, status?: string) =>
+  getTasks: (conversationId: string, status?: string, scope?: string) =>
     authorizedAxios
       .get<Task[]>(`/api/chat/conversations/${conversationId}/tasks`, {
-        params: status ? { status } : undefined,
+        params: { status, scope },
       })
       .then((r) => r.data),
 

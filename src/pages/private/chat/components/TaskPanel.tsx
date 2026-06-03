@@ -8,8 +8,11 @@ import {
   User,
   Trash2,
   Pencil,
+  PlayCircle,
+  RotateCcw,
 } from 'lucide-react';
 import { taskServices } from '@/services/taskServices';
+import { userServices } from '@/services/userServices';
 import type { Task, TaskStatus } from '@/types/task.type';
 import type { Participant } from '@/types/chat.type';
 import CreateTaskModal from './CreateTaskModal';
@@ -32,8 +35,36 @@ const STATUS_TABS: Array<{ value: 'all' | TaskStatus; label: string }> = [
 const PRIORITY_COLORS: Record<string, string> = {
   high: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
   medium: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',
-  low: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300',
+  low: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',
 };
+
+const STATUS_LABELS: Record<TaskStatus, string> = {
+  todo: 'Cần làm',
+  in_progress: 'Đang làm',
+  done: 'Hoàn thành',
+};
+
+const STATUS_COLORS: Record<TaskStatus, string> = {
+  todo: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
+  in_progress: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300',
+  done: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+};
+
+const STATUS_ORDER: Record<TaskStatus, number> = {
+  todo: 0,
+  in_progress: 1,
+  done: 2,
+};
+
+function formatDueDate(value: string) {
+  return new Date(value).toLocaleString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
 
 export default function TaskPanel({
   conversationId,
@@ -47,6 +78,32 @@ export default function TaskPanel({
   const [tab, setTab] = useState<'all' | TaskStatus>('all');
   const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<Task | null>(null);
+  const [memberNames, setMemberNames] = useState<Record<string, string>>({});
+
+  const memberIds = useMemo(
+    () => members.map((m) => m.userId).filter((id) => id && id !== 'binchat-ai-bot'),
+    [members]
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    if (memberIds.length === 0) {
+      setMemberNames({});
+      return;
+    }
+    userServices
+      .getUsersByIds(memberIds)
+      .then((users) => {
+        if (cancelled) return;
+        const map: Record<string, string> = {};
+        for (const user of users) map[user.id] = user.fullName;
+        setMemberNames(map);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [memberIds]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,7 +158,7 @@ export default function TaskPanel({
   const filtered = useMemo(() => {
     const list = tab === 'all' ? tasks : tasks.filter((t) => t.status === tab);
     return [...list].sort((a, b) => {
-      if (a.status !== b.status) return a.status === 'done' ? 1 : -1;
+      if (a.status !== b.status) return STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
       const ad = a.dueDate ? new Date(a.dueDate).getTime() : Infinity;
       const bd = b.dueDate ? new Date(b.dueDate).getTime() : Infinity;
       if (ad !== bd) return ad - bd;
@@ -109,13 +166,18 @@ export default function TaskPanel({
     });
   }, [tasks, tab]);
 
-  const handleToggle = async (task: Task) => {
+  const applyUpdatedTask = useCallback((updated: Task) => {
+    setTasks((p) => p.map((t) => (t._id === updated._id ? updated : t)));
+    window.dispatchEvent(new CustomEvent('task:updated', { detail: { task: updated } }));
+  }, []);
+
+  const handleStatusChange = async (task: Task, nextStatus: TaskStatus) => {
     try {
       const updated =
-        task.status === 'done'
-          ? await taskServices.updateTask(task._id, { status: 'todo' })
-          : await taskServices.completeTask(task._id);
-      setTasks((p) => p.map((t) => (t._id === updated._id ? updated : t)));
+        nextStatus === 'done'
+          ? await taskServices.completeTask(task._id)
+          : await taskServices.updateTask(task._id, { status: nextStatus });
+      applyUpdatedTask(updated);
     } catch {
       /* ignore */
     }
@@ -153,6 +215,24 @@ export default function TaskPanel({
     [tasks]
   );
 
+  const getAssigneeName = useCallback(
+    (assigneeId?: string | null) => {
+      if (!assigneeId) return 'Chưa giao';
+      if (assigneeId === currentUserId) return 'Bạn';
+      return memberNames[assigneeId] ?? `User ${assigneeId.slice(-6)}`;
+    },
+    [currentUserId, memberNames]
+  );
+
+  const getCreatorName = useCallback(
+    (creatorId?: string | null) => {
+      if (!creatorId) return 'Không rõ';
+      if (creatorId === currentUserId) return 'Bạn';
+      return memberNames[creatorId] ?? `User ${creatorId.slice(-6)}`;
+    },
+    [currentUserId, memberNames]
+  );
+
   return (
     <div
       className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4"
@@ -165,7 +245,7 @@ export default function TaskPanel({
         {/* Header */}
         <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3 dark:border-gray-700">
           <div className="flex items-center gap-2">
-            <div className="rounded-lg bg-emerald-500 p-1.5 text-white">
+            <div className="rounded-lg bg-blue-500 p-1.5 text-white">
               <CheckSquare className="h-4 w-4" />
             </div>
             <div>
@@ -183,7 +263,7 @@ export default function TaskPanel({
                 setEditing(null);
                 setShowCreate(true);
               }}
-              className="flex items-center gap-1 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-emerald-700"
+              className="flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700"
             >
               <Plus className="h-3.5 w-3.5" />
               Tạo mới
@@ -205,13 +285,13 @@ export default function TaskPanel({
               onClick={() => setTab(s.value)}
               className={`relative px-3 py-2 text-xs font-medium transition ${
                 tab === s.value
-                  ? 'text-emerald-600 dark:text-emerald-400'
+                  ? 'text-blue-600 dark:text-blue-400'
                   : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
               }`}
             >
               {s.label} ({counts[s.value]})
               {tab === s.value && (
-                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-emerald-500" />
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-500" />
               )}
             </button>
           ))}
@@ -229,9 +309,10 @@ export default function TaskPanel({
             <ul className="space-y-2">
               {filtered.map((task) => {
                 const isMine = task.assigneeId === currentUserId;
-                const canEdit =
-                  task.createdBy === currentUserId || isMine || isAdmin;
-                const canDelete = task.createdBy === currentUserId || isAdmin;
+                const isCreator = task.createdBy === currentUserId;
+                const canChangeStatus = isCreator || isMine;
+                const canEdit = isCreator || isAdmin;
+                const canDelete = isCreator || isAdmin;
                 const overdue =
                   task.dueDate &&
                   task.status !== 'done' &&
@@ -245,14 +326,30 @@ export default function TaskPanel({
                         ? 'border-gray-200 bg-gray-50/50 dark:border-gray-700 dark:bg-gray-800/30'
                         : overdue
                           ? 'border-red-200 bg-red-50/40 dark:border-red-900/40 dark:bg-red-950/20'
-                          : 'border-gray-200 bg-white hover:border-emerald-300 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-emerald-700'
+                          : 'border-gray-200 bg-white hover:border-blue-300 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-blue-700'
                     }`}
                   >
                     <div className="flex items-start gap-3">
                       <button
-                        onClick={() => handleToggle(task)}
-                        disabled={!isMine && task.createdBy !== currentUserId && !isAdmin}
-                        className="mt-0.5 shrink-0 text-emerald-600 disabled:opacity-30 dark:text-emerald-400"
+                        onClick={() =>
+                          handleStatusChange(
+                            task,
+                            task.status === 'todo'
+                              ? 'in_progress'
+                              : task.status === 'in_progress'
+                                ? 'done'
+                                : 'todo'
+                          )
+                        }
+                        disabled={!canChangeStatus}
+                        className="mt-0.5 shrink-0 text-blue-600 disabled:opacity-30 dark:text-blue-400"
+                        title={
+                          task.status === 'todo'
+                            ? 'Bắt đầu làm'
+                            : task.status === 'in_progress'
+                              ? 'Đánh dấu hoàn thành'
+                              : 'Mở lại công việc'
+                        }
                       >
                         {task.status === 'done' ? (
                           <CheckSquare className="h-5 w-5" />
@@ -278,20 +375,29 @@ export default function TaskPanel({
                         )}
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs">
                           <span
+                            className={`rounded-full px-2 py-0.5 font-medium ${STATUS_COLORS[task.status]}`}
+                          >
+                            {STATUS_LABELS[task.status]}
+                          </span>
+                          <span
                             className={`rounded-full px-2 py-0.5 font-medium ${PRIORITY_COLORS[task.priority]}`}
                           >
                             {task.priority === 'high'
-                              ? '● Cao'
+                              ? 'Cao'
                               : task.priority === 'low'
-                                ? '● Thấp'
-                                : '● Vừa'}
+                                ? 'Thấp'
+                                : 'Vừa'}
                           </span>
                           {task.assigneeId && (
                             <span className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
                               <User className="h-3 w-3" />
-                              {isMine ? 'Bạn' : task.assigneeId.slice(-6)}
+                              Làm: {getAssigneeName(task.assigneeId)}
                             </span>
                           )}
+                          <span className="flex items-center gap-1 text-gray-600 dark:text-gray-400">
+                            <User className="h-3 w-3" />
+                            Giao: {getCreatorName(task.createdBy)}
+                          </span>
                           {task.dueDate && (
                             <span
                               className={`flex items-center gap-1 ${
@@ -301,12 +407,7 @@ export default function TaskPanel({
                               }`}
                             >
                               <Clock className="h-3 w-3" />
-                              {new Date(task.dueDate).toLocaleString('vi-VN', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                              })}
+                              {formatDueDate(task.dueDate)}
                               {overdue && ' (Quá hạn)'}
                             </span>
                           )}
@@ -314,6 +415,33 @@ export default function TaskPanel({
                       </div>
 
                       <div className="flex shrink-0 gap-1 opacity-0 transition group-hover:opacity-100">
+                        {canChangeStatus && (
+                          task.status === 'todo' ? (
+                            <button
+                              onClick={() => handleStatusChange(task, 'in_progress')}
+                              className="rounded p-1 text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-900/30"
+                              title="Bắt đầu làm"
+                            >
+                              <PlayCircle className="h-3.5 w-3.5" />
+                            </button>
+                          ) : task.status === 'in_progress' ? (
+                            <button
+                              onClick={() => handleStatusChange(task, 'done')}
+                              className="rounded p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                              title="Hoàn thành"
+                            >
+                              <CheckSquare className="h-3.5 w-3.5" />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleStatusChange(task, 'todo')}
+                              className="rounded p-1 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                              title="Mở lại"
+                            >
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            </button>
+                          )
+                        )}
                         {canEdit && (
                           <button
                             onClick={() => {

@@ -37,6 +37,13 @@ import PollBubble from './PollBubble';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
+function cleanBotContent(content: string) {
+  return content
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/^[\s\-•]*[✅☑️📌📅🔥⚙️⚠️]+\s*/gm, '- ')
+    .trim();
+}
+
 // Tooltip wrapper — uses the TooltipProvider mounted at App root
 function ActionBtn({
   label,
@@ -126,6 +133,8 @@ export default function MessageBubble({
   const isSystemMsg = message.type === 'system' || message.senderId === 'system';
   const isBotMsg = message.senderId === 'binchat-ai-bot';
   const timeStr = format(new Date(message.createdAt), 'HH:mm');
+  const textContent =
+    isBotMsg && message.content ? cleanBotContent(message.content) : message.content;
 
   const canRevoke =
     isMine &&
@@ -664,11 +673,11 @@ export default function MessageBubble({
           ))}
 
           {/* Text content */}
-          {message.content && (
+          {textContent && (
             <p
               className={`text-[13px] leading-relaxed whitespace-pre-wrap break-words ${attachmentsOnly ? 'px-3 pb-1' : ''}`}
             >
-              {message.content}
+              {textContent}
               {message.isEdited && (
                 <span className="text-[10px] italic opacity-50 ml-1">(đã chỉnh sửa)</span>
               )}

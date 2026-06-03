@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { taskServices } from '@/services/taskServices';
 import { userServices } from '@/services/userServices';
-import type { Task, TaskPriority } from '@/types/task.type';
+import type { Task, TaskPriority, TaskStatus } from '@/types/task.type';
 import type { Participant } from '@/types/chat.type';
 
 interface Props {
@@ -19,6 +19,14 @@ interface MemberUser {
   avatar?: string;
 }
 
+const toDatetimeLocalValue = (value?: string | null) => {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const offsetMs = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+};
+
 export default function CreateTaskModal({
   conversationId,
   members,
@@ -30,9 +38,8 @@ export default function CreateTaskModal({
   const [description, setDescription] = useState(initial?.description ?? '');
   const [assigneeId, setAssigneeId] = useState<string>(initial?.assigneeId ?? '');
   const [priority, setPriority] = useState<TaskPriority>(initial?.priority ?? 'medium');
-  const [dueDate, setDueDate] = useState<string>(
-    initial?.dueDate ? new Date(initial.dueDate).toISOString().slice(0, 16) : ''
-  );
+  const [status, setStatus] = useState<TaskStatus>(initial?.status ?? 'todo');
+  const [dueDate, setDueDate] = useState<string>(toDatetimeLocalValue(initial?.dueDate));
   const [users, setUsers] = useState<MemberUser[]>([]);
   const [saving, setSaving] = useState(false);
 
@@ -62,6 +69,7 @@ export default function CreateTaskModal({
         description: description.trim() || undefined,
         assigneeId: assigneeId || undefined,
         priority,
+        status,
         dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
       };
       const task = initial
@@ -106,7 +114,7 @@ export default function CreateTaskModal({
               onChange={(e) => setTitle(e.target.value)}
               maxLength={200}
               required
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800"
               placeholder="Ví dụ: Hoàn thiện slide thuyết trình"
             />
           </div>
@@ -120,7 +128,7 @@ export default function CreateTaskModal({
               onChange={(e) => setDescription(e.target.value)}
               maxLength={2000}
               rows={2}
-              className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800"
+              className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800"
             />
           </div>
 
@@ -132,7 +140,7 @@ export default function CreateTaskModal({
               <select
                 value={assigneeId}
                 onChange={(e) => setAssigneeId(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800"
+                className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800"
               >
                 <option value="">— Không giao —</option>
                 {users.map((u) => (
@@ -150,7 +158,7 @@ export default function CreateTaskModal({
               <select
                 value={priority}
                 onChange={(e) => setPriority(e.target.value as TaskPriority)}
-                className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800"
+                className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800"
               >
                 <option value="low">Thấp</option>
                 <option value="medium">Vừa</option>
@@ -161,13 +169,28 @@ export default function CreateTaskModal({
 
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+              Trạng thái
+            </label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as TaskStatus)}
+              className="w-full rounded-lg border border-gray-300 px-2 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800"
+            >
+              <option value="todo">Cần làm</option>
+              <option value="in_progress">Đang làm</option>
+              <option value="done">Hoàn thành</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
               Hạn chót
             </label>
             <input
               type="datetime-local"
               value={dueDate}
               onChange={(e) => setDueDate(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800"
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800"
             />
           </div>
 
@@ -182,7 +205,7 @@ export default function CreateTaskModal({
             <button
               type="submit"
               disabled={saving || !title.trim()}
-              className="rounded-lg bg-emerald-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
               {saving ? 'Đang lưu...' : initial ? 'Cập nhật' : 'Tạo công việc'}
             </button>

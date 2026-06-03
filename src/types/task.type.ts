@@ -38,6 +38,7 @@ export interface CreateTaskPayload {
   description?: string;
   assigneeId?: string;
   priority?: TaskPriority;
+  status?: TaskStatus;
   dueDate?: string;
 }
 
