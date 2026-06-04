@@ -42,7 +42,11 @@ export default function AiBotPanel({ onClose }: AiBotPanelProps) {
     setLoading(true);
 
     try {
-      const res = await aiServices.ask(q);
+      const history = messages.map((message) => ({
+        role: message.role === 'assistant' ? 'bot' as const : 'user' as const,
+        text: message.content,
+      }));
+      const res = await aiServices.ask(q, undefined, [...history, { role: 'user', text: q }]);
       setMessages((prev) => [...prev, { role: 'assistant', content: res.answer }]);
     } catch {
       toast.error('Không thể kết nối AI. Vui lòng thử lại.');

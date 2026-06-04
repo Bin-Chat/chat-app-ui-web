@@ -9,6 +9,11 @@ export interface AskResponse {
   cached: boolean;
 }
 
+export interface AskHistoryMessage {
+  role: 'user' | 'bot';
+  text: string;
+}
+
 export interface RagCitation {
   id: string;
   documentId: string | null;
@@ -109,9 +114,9 @@ export interface MessageItem {
 
 export const aiServices = {
   /** RAG Bot — hỏi đáp dựa trên tài liệu đã index */
-  ask: (question: string, collectionId?: string) =>
+  ask: (question: string, collectionId?: string, history?: AskHistoryMessage[]) =>
     authorizedAxios
-      .post<AskResponse>('/api/ai/ask', { question, collectionId })
+      .post<AskResponse>('/api/ai/ask', { question, collectionId, history })
       .then((r) => r.data),
 
   /** Index tài liệu vào Qdrant để RAG Bot sử dụng */
